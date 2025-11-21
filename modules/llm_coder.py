@@ -5,14 +5,18 @@ from datetime import datetime
 from openai import OpenAI
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
+from utils.db_helpers import save_coded_data, log_action
 
 AI_INTEGRATIONS_OPENAI_API_KEY = os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY")
 AI_INTEGRATIONS_OPENAI_BASE_URL = os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL")
 
-openai_client = OpenAI(
-    api_key=AI_INTEGRATIONS_OPENAI_API_KEY,
-    base_url=AI_INTEGRATIONS_OPENAI_BASE_URL
-)
+if not AI_INTEGRATIONS_OPENAI_API_KEY or not AI_INTEGRATIONS_OPENAI_BASE_URL:
+    openai_client = None
+else:
+    openai_client = OpenAI(
+        api_key=AI_INTEGRATIONS_OPENAI_API_KEY,
+        base_url=AI_INTEGRATIONS_OPENAI_BASE_URL
+    )
 
 def is_rate_limit_error(exception: BaseException) -> bool:
     error_msg = str(exception)
@@ -36,6 +40,10 @@ def render():
     - All coding decisions are logged for transparency and replicability
     - Results can be exported for inter-coder reliability analysis
     """)
+    
+    if not openai_client:
+        st.error("⚠️ OpenAI integration not properly configured. Environment variables missing.")
+        return
     
     if not st.session_state.collected_data:
         st.warning("⚠️ No data collected yet. Please collect data from the Reddit Data Collection module first.")
@@ -161,19 +169,6 @@ def render():
                 
                 coded_results.append(coded_item)
                 
-                log_entry = {
-                    'timestamp': datetime.now().isoformat(),
-                    'action': 'llm_coding',
-                    'item_id': item.get('id'),
-                    'model': model_selection,
-                    'coding_result': coding_data,
-                    'session_id': st.session_state.session_id
-                }
-                
-                os.makedirs('logs', exist_ok=True)
-                with open(f'logs/audit_{st.session_state.session_id}.jsonl', 'a') as f:
-                    f.write(json.dumps(log_entry) + '\n')
-                
             except Exception as e:
                 st.warning(f"⚠️ Error coding item {item.get('id')}: {str(e)}")
             
@@ -185,10 +180,23 @@ def render():
         
         st.session_state.coded_data.extend(coded_results)
         
+        saved_count = save_coded_data(coded_results, st.session_state.session_id)
+        
+        log_action(
+            action='llm_coding',
+            session_id=st.session_state.session_id,
+            details={
+                'model': model_selection,
+                'coding_approach': coding_approach,
+                'items_coded': len(coded_results),
+                'saved_to_db': saved_count
+            }
+        )
+        
         status_text.empty()
         progress_bar.empty()
         
-        st.success(f"✅ Successfully coded {len(coded_results)} items")
+        st.success(f"✅ Successfully coded and saved {saved_count} items")
         
         st.subheader("📊 Coding Results Summary")
         

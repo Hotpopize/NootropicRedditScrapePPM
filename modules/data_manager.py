@@ -93,11 +93,14 @@ def render():
             
             elif export_format == "Excel (.xlsx)":
                 try:
+                    from io import BytesIO
                     if export_type == "Both (Collected + Coded)":
                         st.warning("Excel export with multiple sheets requires pandas ExcelWriter. Use CSV for now or export separately.")
                     else:
                         df = prepare_dataframe(data_to_export, flatten_nested, include_metadata)
-                        excel_buffer = df.to_excel(index=False, engine='openpyxl')
+                        excel_buffer = BytesIO()
+                        df.to_excel(excel_buffer, index=False, engine='openpyxl')
+                        excel_buffer.seek(0)
                         st.download_button(
                             label="⬇️ Download Excel",
                             data=excel_buffer,

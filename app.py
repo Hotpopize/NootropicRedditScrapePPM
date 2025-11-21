@@ -2,6 +2,8 @@ import streamlit as st
 import json
 import os
 from datetime import datetime
+from database import init_db
+from utils.db_helpers import load_collected_data, load_coded_data, load_codebook
 
 st.set_page_config(
     page_title="Academic Research Tool - Nootropics Market Segmentation",
@@ -9,22 +11,31 @@ st.set_page_config(
     layout="wide"
 )
 
+init_db()
+
 if 'session_id' not in st.session_state:
     st.session_state.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-if 'collected_data' not in st.session_state:
-    st.session_state.collected_data = []
-
-if 'coded_data' not in st.session_state:
-    st.session_state.coded_data = []
-
-if 'codebook' not in st.session_state:
-    st.session_state.codebook = {
-        'push_factors': [],
-        'pull_factors': [],
-        'mooring_factors': [],
-        'emergent_themes': []
-    }
+if 'db_loaded' not in st.session_state:
+    try:
+        all_collected = load_collected_data(session_id=None, limit=10000)
+        all_coded = load_coded_data(session_id=None, limit=10000)
+        all_codebook = load_codebook(session_id=None)
+        
+        st.session_state.collected_data = all_collected
+        st.session_state.coded_data = all_coded
+        st.session_state.codebook = all_codebook
+        st.session_state.db_loaded = True
+    except Exception as e:
+        st.session_state.collected_data = []
+        st.session_state.coded_data = []
+        st.session_state.codebook = {
+            'push_factors': [],
+            'pull_factors': [],
+            'mooring_factors': [],
+            'emergent_themes': []
+        }
+        st.session_state.db_loaded = False
 
 st.title("🔬 Academic Research Tool")
 st.subheader("Natural Cognitive Supplement Market Segmentation via Reddit Analysis")
