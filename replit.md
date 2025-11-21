@@ -51,25 +51,47 @@ Supporting PhD/Masters thesis research on consumer behavior in the natural cogni
 - LLM coding requires human validation and oversight
 
 ## Recent Changes (2025-11-21)
-- Added PostgreSQL database with complete persistence layer
-- Implemented database models for all research data types
-- Fixed Excel export using BytesIO buffers
-- Added environment variable validation for LLM integration
-- Implemented data loading on startup for session continuity
-- Added fallback to SQLite when DATABASE_URL not configured
-- All modules now save to database automatically
-- Audit logging moved from flat files to database
+- ✅ Added PostgreSQL database with complete persistence layer
+- ✅ Implemented database models for all research data types
+- ✅ Fixed Excel export using BytesIO buffers
+- ✅ Added environment variable validation for LLM integration
+- ✅ Implemented data loading on startup for session continuity
+- ✅ Added fallback to SQLite when DATABASE_URL not configured
+- ✅ All modules now save to database automatically
+- ✅ Audit logging moved from flat files to database
+- ✅ Added Topic Modeling module (TF-IDF, LDA, NMF) for automated theme discovery
+- ✅ Added Inter-Coder Reliability module with Cohen's Kappa and Krippendorff's Alpha
+- ✅ Added Thesis Export Templates for all academic appendices (A-E) and methodology chapter
+- ✅ Fixed codebook deletion persistence to properly propagate to database
+- ✅ Corrected Krippendorff's Alpha implementation to follow canonical formula
 
 ## Development Notes
 - Database initialization happens automatically on app startup
-- Session state loads all historical data from database
-- Supports both PostgreSQL (via DATABASE_URL) and SQLite fallback
+- Session state loads all historical data from database (session-independent)
+- Supports both PostgreSQL (via DATABASE_URL) and SQLite fallback (automatic)
 - OpenAI integration uses Replit AI Integrations (charges billed to credits)
 - Reddit credentials stored in session state (not persisted)
+- All save operations use upsert pattern to prevent duplicates
+- Codebook deletion properly removes entries from database
+- Inter-coder reliability uses canonical Krippendorff Alpha: α = 1 - (Do/De)
 
-## Future Enhancements Planned
-- BERTopic integration for topic modeling validation
-- Inter-coder reliability metrics
+## Completed Features (Production-Ready)
+- ✅ Reddit data collection with PRAW integration and retry logic
+- ✅ LLM-assisted thematic coding with OpenAI GPT-5
+- ✅ PPM framework coding (Push/Pull/Mooring factors)
+- ✅ Codebook management with frequency tracking and persistence
+- ✅ PostgreSQL/SQLite persistence for data continuity
+- ✅ CSV/JSON/Excel export for NVivo and MAXQDA
+- ✅ Topic modeling (TF-IDF, LDA, NMF) for theme validation
+- ✅ Inter-coder reliability (Cohen's Kappa, Krippendorff's Alpha)
+- ✅ Thesis export templates (Appendices A-E, Methodology Chapter)
+- ✅ Session logging and audit trails
+- ✅ Interactive dashboard with statistics
+- ✅ End-to-end testing passed
+
+## Future Enhancements (Optional)
 - GPU-accelerated batch processing with RAPIDS cuDF
-- Export templates for thesis appendices
+- BERTopic integration as alternative to TF-IDF/LDA
 - Citation manager integration
+- Advanced visualization tools
+- Multi-user collaboration features
