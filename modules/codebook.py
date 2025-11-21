@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import pandas as pd
 from datetime import datetime
+from utils.db_helpers import save_codebook
 
 def render():
     st.header("📖 Codebook Management")
@@ -109,6 +110,8 @@ def render():
                     st.session_state.codebook[category_key].append(new_code)
                     st.success(f"✅ Added new code '{code_name}' to {code_category}")
                 
+                save_codebook(st.session_state.codebook, st.session_state.session_id)
+                
                 st.rerun()
             else:
                 st.error("⚠️ Please provide both a code name and definition")
@@ -140,6 +143,7 @@ def render():
                     c for c in st.session_state.codebook[category_key] 
                     if c['name'] != code_to_delete
                 ]
+                save_codebook(st.session_state.codebook, st.session_state.session_id)
                 st.success(f"✅ Deleted code '{code_to_delete}'")
                 st.rerun()
         else:

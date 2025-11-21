@@ -4,6 +4,8 @@ import pandas as pd
 from datetime import datetime, timedelta
 import json
 import os
+from utils.db_helpers import save_collected_data, log_action
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 def render():
     st.header("🌐 Reddit Data Collection")
@@ -165,25 +167,24 @@ def render():
                 except Exception as e:
                     st.warning(f"⚠️ Error processing r/{subreddit_name}: {str(e)}")
             
+            saved_count = save_collected_data(collected_posts, st.session_state.session_id)
             st.session_state.collected_data.extend(collected_posts)
             
-            log_entry = {
-                'timestamp': datetime.now().isoformat(),
-                'action': 'data_collection',
-                'subreddits': subreddits,
-                'method': collection_method,
-                'posts_collected': len(collected_posts),
-                'session_id': st.session_state.session_id
-            }
-            
-            os.makedirs('logs', exist_ok=True)
-            with open(f'logs/audit_{st.session_state.session_id}.jsonl', 'a') as f:
-                f.write(json.dumps(log_entry) + '\n')
+            log_action(
+                action='data_collection',
+                session_id=st.session_state.session_id,
+                details={
+                    'subreddits': subreddits,
+                    'method': collection_method,
+                    'posts_collected': len(collected_posts),
+                    'saved_to_db': saved_count
+                }
+            )
             
             status_text.empty()
             progress_bar.empty()
             
-            st.success(f"✅ Successfully collected {len(collected_posts)} items ({sum(1 for p in collected_posts if p['type'] == 'post')} posts, {sum(1 for p in collected_posts if p['type'] == 'comment')} comments)")
+            st.success(f"✅ Successfully collected and saved {saved_count} items ({sum(1 for p in collected_posts if p['type'] == 'post')} posts, {sum(1 for p in collected_posts if p['type'] == 'comment')} comments)")
             
         except Exception as e:
             st.error(f"❌ Error: {str(e)}")
