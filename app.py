@@ -43,7 +43,7 @@ st.subheader("Natural Cognitive Supplement Market Segmentation via Reddit Analys
 st.sidebar.title("Navigation")
 page = st.sidebar.radio(
     "Select Module",
-    ["📊 Dashboard", "🌐 Reddit Data Collection", "🤖 LLM-Assisted Coding", "📖 Codebook Management", "💾 Data Export & Audit"]
+    ["📊 Dashboard", "🌐 Reddit Data Collection", "🤖 LLM-Assisted Coding", "📖 Codebook Management", "🔍 Topic Modeling", "📈 Inter-Coder Reliability", "📝 Thesis Exports", "💾 Data Export & Audit"]
 )
 
 if page == "📊 Dashboard":
@@ -58,6 +58,15 @@ elif page == "🤖 LLM-Assisted Coding":
 elif page == "📖 Codebook Management":
     from modules import codebook
     codebook.render()
+elif page == "🔍 Topic Modeling":
+    from modules import topic_modeling
+    topic_modeling.render()
+elif page == "📈 Inter-Coder Reliability":
+    from modules import reliability
+    reliability.render()
+elif page == "📝 Thesis Exports":
+    from modules import thesis_export
+    thesis_export.render()
 elif page == "💾 Data Export & Audit":
     from modules import data_manager
     data_manager.render()
