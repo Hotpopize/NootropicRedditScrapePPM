@@ -77,6 +77,19 @@ class AuditLog(Base):
     details = Column(JSON)
     extra_metadata = Column(JSON, nullable=True)
 
+class ReplicabilityLog(Base):
+    __tablename__ = 'replicability_log'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    collection_hash = Column(String, unique=True, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    session_id = Column(String, index=True)
+    parameters = Column(JSON)
+    statistics = Column(JSON)
+    rate_limit_events = Column(JSON, nullable=True)
+    validation_results = Column(JSON, nullable=True)
+    notes = Column(Text, nullable=True)
+
 def init_db():
     Base.metadata.create_all(bind=engine)
 

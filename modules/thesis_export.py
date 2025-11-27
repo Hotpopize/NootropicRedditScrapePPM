@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import json
+from utils.db_helpers import load_replicability_logs, get_data_quality_report
 
 def render():
     st.header("Thesis Export Templates")
@@ -24,6 +25,7 @@ def render():
             "Appendix C: Sample Coded Data",
             "Appendix D: Thematic Analysis Summary",
             "Appendix E: Inter-Coder Reliability Report",
+            "Appendix F: Data Quality & Edge Cases",
             "Complete Methodology Chapter"
         ]
     )
@@ -42,6 +44,9 @@ def render():
     
     elif template_type == "Appendix E: Inter-Coder Reliability Report":
         generate_reliability_appendix()
+    
+    elif template_type == "Appendix F: Data Quality & Edge Cases":
+        generate_data_quality_appendix()
     
     elif template_type == "Complete Methodology Chapter":
         generate_complete_methodology()
@@ -98,11 +103,23 @@ Posts and comments were included if they:
 - Compliance with Reddit API Terms of Service
 - IRB approval obtained (if applicable)
 
+## NSFW Content Handling
+The data collection process includes explicit handling of Not Safe For Work (NSFW) content:
+- NSFW subreddits and posts are flagged with the `over_18` metadata field
+- Researchers can choose to include or exclude NSFW content based on study requirements
+- All NSFW decisions are logged in the audit trail for methodological transparency
+- Sensitive content is documented but not displayed without explicit researcher consent
+
 ## Data Quality Assurance
 - Automated validation of data completeness
-- Manual review of sample items
+- Content status tracking (available, removed, deleted)
+- Language detection for non-English content flagging
+- Media-only post identification
+- Truncation handling for very long posts
+- Rate limit event logging
 - Duplicate detection and removal
 - Timestamp verification for temporal accuracy
+- Collection hash for replicability verification
 """
     
     st.markdown(content)
@@ -298,6 +315,217 @@ def generate_reliability_appendix():
         label="Download Appendix E (Markdown)",
         data=content,
         file_name=f"Appendix_E_Reliability_{datetime.now().strftime('%Y%m%d')}.md",
+        mime="text/markdown"
+    )
+
+def generate_data_quality_appendix():
+    st.subheader("Appendix F: Data Quality & Edge Cases Report")
+    
+    try:
+        db_report = get_data_quality_report()
+        replicability_logs = load_replicability_logs(limit=10)
+    except Exception:
+        db_report = None
+        replicability_logs = []
+    
+    total_items = len(st.session_state.collected_data)
+    nsfw_count = 0
+    removed_count = 0
+    non_english_count = 0
+    media_only_count = 0
+    truncated_count = 0
+    skipped_nsfw = 0
+    skipped_removed = 0
+    skipped_media_only = 0
+    data_source = "session"
+    
+    nsfw_subreddits_db = []
+    
+    if replicability_logs:
+        latest_log = replicability_logs[0]
+        stats = latest_log.get('statistics', {})
+        validation = latest_log.get('validation_results', {})
+        
+        if stats.get('total_collected'):
+            data_source = "database"
+            total_items = stats.get('total_collected', 1)
+            nsfw_count = stats.get('nsfw_collected', validation.get('nsfw_collected', 0))
+            removed_count = stats.get('removed_collected', validation.get('removed_collected', 0))
+            non_english_count = stats.get('non_english_collected', validation.get('non_english_collected', 0))
+            media_only_count = stats.get('media_only_collected', validation.get('media_only_collected', 0))
+            truncated_count = stats.get('truncated_collected', validation.get('truncated_collected', 0))
+            skipped_nsfw = stats.get('skipped_nsfw', 0)
+            skipped_removed = stats.get('skipped_removed', 0)
+            skipped_media_only = stats.get('skipped_media_only', 0)
+            nsfw_subreddits_db = stats.get('nsfw_subreddits', validation.get('nsfw_subreddits', []))
+    
+    if data_source == "session" or total_items == 0:
+        nsfw_count = sum(1 for item in st.session_state.collected_data if item.get('metadata', {}).get('nsfw', False))
+        removed_count = sum(1 for item in st.session_state.collected_data if item.get('metadata', {}).get('content_status') in ['removed', 'author_deleted', 'empty'])
+        non_english_count = sum(1 for item in st.session_state.collected_data if item.get('metadata', {}).get('language_flag') == 'likely_non_english')
+        media_only_count = sum(1 for item in st.session_state.collected_data if item.get('metadata', {}).get('content_type') in ['image', 'video', 'link'])
+        truncated_count = sum(1 for item in st.session_state.collected_data if item.get('metadata', {}).get('was_truncated', False))
+        total_items = max(len(st.session_state.collected_data), 1)
+    
+    if db_report:
+        nsfw_count = max(nsfw_count, db_report.get('nsfw_items', 0))
+        removed_count = max(removed_count, db_report.get('removed_items', 0))
+        non_english_count = max(non_english_count, db_report.get('non_english_items', 0))
+    
+    total_items = max(total_items, 1)
+    
+    subreddits_with_nsfw = set()
+    
+    if nsfw_subreddits_db:
+        subreddits_with_nsfw = set(nsfw_subreddits_db)
+    else:
+        for item in st.session_state.collected_data:
+            if item.get('metadata', {}).get('subreddit_nsfw', False):
+                subreddits_with_nsfw.add(item.get('subreddit'))
+    
+    content = f"""# Appendix F: Data Quality & Edge Cases Report
+
+## Overview
+
+This appendix documents the handling of edge cases and data quality considerations in the research data collection process, ensuring methodological transparency and replicability.
+
+**Data Source**: {data_source.upper()} ({"Persisted replicability logs" if data_source == "database" else "Current session data"})
+**Total Items Analyzed**: {total_items}
+
+## NSFW (Not Safe For Work) Content
+
+### Summary Statistics
+- **Total NSFW Posts/Comments Collected**: {nsfw_count}
+- **NSFW Content Skipped (Excluded)**: {skipped_nsfw}
+- **NSFW Subreddits Encountered**: {len(subreddits_with_nsfw)}
+- **Percentage of NSFW Content**: {(nsfw_count / total_items * 100):.1f}%
+
+### Ethical Handling Protocol
+1. All NSFW content is flagged with the `over_18` metadata field from Reddit API
+2. NSFW subreddits are identified and documented at the collection stage
+3. Researchers can filter NSFW content at any point in the analysis
+4. All NSFW inclusion/exclusion decisions are logged in the audit trail
+5. Sensitive content is handled according to IRB guidelines
+
+### Implications for Analysis
+NSFW content in supplement/nootropic communities may include:
+- Discussions of substances with sexual enhancement claims
+- User experiences involving sensitive personal topics
+- Content from communities with age-restricted settings
+
+Researchers should consider whether NSFW content is relevant to the research questions and document their inclusion/exclusion rationale.
+
+## Removed/Deleted Content
+
+### Summary Statistics
+- **Removed or Deleted Items Collected**: {removed_count}
+- **Removed Content Skipped (Excluded)**: {skipped_removed}
+- **Percentage of Unavailable Content**: {(removed_count / total_items * 100):.1f}%
+
+### Content Status Categories
+- **[removed]**: Content removed by moderators
+- **[deleted]**: Content deleted by the original author
+- **empty**: Posts with no text content
+
+### Methodological Implications
+Removed/deleted content represents a form of data loss that may introduce bias:
+- Controversial or rule-violating content may be overrepresented in deletions
+- Self-censorship by users affects data authenticity
+- Moderator actions reflect community standards
+
+The study documents these items to maintain transparency about data completeness.
+
+## Language Detection
+
+### Summary Statistics
+- **Flagged as Likely Non-English**: {non_english_count}
+- **Percentage Flagged**: {(non_english_count / total_items * 100):.1f}%
+
+### Detection Method
+Basic heuristic analysis using character encoding patterns:
+- Posts with >30% non-ASCII characters are flagged
+- Manual review recommended for flagged content
+- False positives may include posts with heavy emoji use
+
+## Media-Only Posts
+
+### Summary Statistics
+- **Media-Only Posts Collected (Image/Video/Link)**: {media_only_count}
+- **Media-Only Posts Skipped (Excluded)**: {skipped_media_only}
+- **Percentage of Media-Only**: {(media_only_count / total_items * 100):.1f}%
+
+### Content Types Identified
+- Image posts (Reddit galleries, Imgur links)
+- Video posts (Reddit video, YouTube)
+- External link posts (articles, product pages)
+
+### Analytical Considerations
+Media-only posts may have limited text for thematic analysis but provide:
+- Product images and documentation
+- User-generated content (before/after photos)
+- External references and citations
+
+## Text Length & Truncation
+
+### Summary Statistics
+- **Truncated Posts**: {truncated_count}
+- **Maximum Text Length Applied**: Configurable (default 50,000 chars)
+
+### Handling Very Long Posts
+Posts exceeding the maximum length are truncated with:
+- `was_truncated` metadata flag set to True
+- Original length preserved for reference
+- Analysis conducted on truncated version
+
+## Replicability Documentation
+
+### Collection Parameters Hash
+Each collection run generates a unique hash of:
+- Target subreddits
+- Collection method and time filter
+- Limit and comment settings
+- NSFW and edge case filter settings
+- User agent and timestamp
+
+This hash enables verification that two researchers used identical parameters.
+
+### Rate Limit Events
+All API rate limiting events are logged with:
+- Timestamp of occurrence
+- Affected subreddit/post
+- Error message details
+- Recovery actions taken
+
+## Recommendations for Future Research
+
+1. **NSFW Content**: Clearly document inclusion/exclusion criteria in methodology
+2. **Deleted Content**: Consider temporal analysis to capture content before deletion
+3. **Language**: Implement more sophisticated NLP-based language detection
+4. **Media Posts**: Consider image analysis tools for visual content
+5. **Replicability**: Archive collection parameters and share hashes
+
+---
+
+**Report Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+**Total Items in Database**: {total_items}
+**Data Source**: {data_source.upper()}
+"""
+    
+    if replicability_logs:
+        content += "\n## Collection Run History\n\n"
+        content += "| Hash | Timestamp | Total | NSFW | Removed | Non-English |\n"
+        content += "|------|-----------|-------|------|---------|-------------|\n"
+        for log in replicability_logs[:5]:
+            stats = log.get('statistics', {})
+            validation = log.get('validation_results', {})
+            content += f"| {log.get('collection_hash', 'N/A')[:8]}... | {log.get('timestamp', 'N/A')[:10]} | {stats.get('total_collected', 0)} | {validation.get('nsfw_collected', 0)} | {validation.get('removed_collected', 0)} | {validation.get('non_english_collected', 0)} |\n"
+    
+    st.markdown(content)
+    
+    st.download_button(
+        label="Download Appendix F (Markdown)",
+        data=content,
+        file_name=f"Appendix_F_Data_Quality_{datetime.now().strftime('%Y%m%d')}.md",
         mime="text/markdown"
     )
 

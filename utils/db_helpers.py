@@ -1,4 +1,4 @@
-from database import get_db_session, CollectedData, CodedData, Codebook, AuditLog
+from database import get_db_session, CollectedData, CodedData, Codebook, AuditLog, ReplicabilityLog
 from datetime import datetime
 import json
 
@@ -276,5 +276,94 @@ def load_audit_logs(session_id, action_filter=None, limit=100):
             }
             for r in results
         ]
+    finally:
+        db.close()
+
+def save_replicability_log(collection_hash, session_id, parameters, statistics, rate_limit_events=None, validation_results=None, notes=None):
+    db = get_db_session()
+    try:
+        existing = db.query(ReplicabilityLog).filter_by(collection_hash=collection_hash).first()
+        
+        if existing:
+            existing.parameters = parameters
+            existing.statistics = statistics
+            existing.rate_limit_events = rate_limit_events
+            existing.validation_results = validation_results
+            existing.notes = notes
+            existing.session_id = session_id
+        else:
+            log = ReplicabilityLog(
+                collection_hash=collection_hash,
+                session_id=session_id,
+                parameters=parameters,
+                statistics=statistics,
+                rate_limit_events=rate_limit_events,
+                validation_results=validation_results,
+                notes=notes
+            )
+            db.add(log)
+        
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+def load_replicability_logs(session_id=None, limit=50):
+    db = get_db_session()
+    try:
+        query = db.query(ReplicabilityLog)
+        
+        if session_id:
+            query = query.filter_by(session_id=session_id)
+        
+        query = query.order_by(ReplicabilityLog.timestamp.desc()).limit(limit)
+        
+        results = query.all()
+        
+        return [
+            {
+                'collection_hash': r.collection_hash,
+                'timestamp': r.timestamp.isoformat() if r.timestamp else None,
+                'session_id': r.session_id,
+                'parameters': r.parameters or {},
+                'statistics': r.statistics or {},
+                'rate_limit_events': r.rate_limit_events or [],
+                'validation_results': r.validation_results or {},
+                'notes': r.notes
+            }
+            for r in results
+        ]
+    finally:
+        db.close()
+
+def get_data_quality_report():
+    db = get_db_session()
+    try:
+        total_items = db.query(CollectedData).count()
+        
+        nsfw_items = db.query(CollectedData).filter(
+            CollectedData.extra_metadata['nsfw'].astext == 'true'
+        ).count() if total_items > 0 else 0
+        
+        removed_items = 0
+        non_english_items = 0
+        
+        all_items = db.query(CollectedData).all()
+        for item in all_items:
+            if item.extra_metadata:
+                if item.extra_metadata.get('content_status') in ['removed', 'author_deleted']:
+                    removed_items += 1
+                if item.extra_metadata.get('language_flag') == 'likely_non_english':
+                    non_english_items += 1
+        
+        return {
+            'total_items': total_items,
+            'nsfw_items': nsfw_items,
+            'removed_items': removed_items,
+            'non_english_items': non_english_items,
+            'report_generated': datetime.utcnow().isoformat()
+        }
     finally:
         db.close()

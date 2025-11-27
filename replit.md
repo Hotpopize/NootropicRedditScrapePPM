@@ -24,6 +24,7 @@ Supporting PhD/Masters thesis research on consumer behavior in the natural cogni
 - **coded_data**: LLM-assisted coding results with PPM categorization
 - **codebook**: Theoretical and emergent code definitions
 - **audit_log**: Complete methodological audit trail
+- **replicability_log**: Collection parameters, statistics, and validation metrics for reproducibility
 
 ### Key Features Implemented
 - ✅ Reddit data collection with PRAW integration
@@ -50,7 +51,19 @@ Supporting PhD/Masters thesis research on consumer behavior in the natural cogni
 - All methodological decisions must be logged
 - LLM coding requires human validation and oversight
 
-## Recent Changes (2025-11-21)
+## Recent Changes (2025-11-27)
+- ✅ Added comprehensive NSFW content handling with include/exclude toggle
+- ✅ Implemented edge case detection: removed/deleted content, media-only posts, non-English text, truncated content
+- ✅ Added ReplicabilityLog database model for collection parameter persistence and verification
+- ✅ Implemented collection hash generation for replicability verification
+- ✅ Rate limit event tracking and logging
+- ✅ Complete validation metrics: NSFW collected/skipped, removed collected/skipped, truncated items, media-only items
+- ✅ NSFW subreddit tracking persisted to database for fresh session access
+- ✅ Thesis Export Appendix F now database-driven with full edge case documentation
+- ✅ Data source indicator (DATABASE/SESSION) in Appendix F for transparency
+- ✅ Safe denominators prevent division-by-zero in percentage calculations
+
+## Previous Changes (2025-11-21)
 - ✅ Added PostgreSQL database with complete persistence layer
 - ✅ Implemented database models for all research data types
 - ✅ Fixed Excel export using BytesIO buffers
@@ -74,9 +87,15 @@ Supporting PhD/Masters thesis research on consumer behavior in the natural cogni
 - All save operations use upsert pattern to prevent duplicates
 - Codebook deletion properly removes entries from database
 - Inter-coder reliability uses canonical Krippendorff Alpha: α = 1 - (Do/De)
+- ReplicabilityLog stores collection_hash, parameters, statistics, validation_results for each run
+- NSFW metadata captured at both post and subreddit level (over_18 flags)
+- Edge case handling documented in Appendix F with database-sourced metrics
 
 ## Completed Features (Production-Ready)
 - ✅ Reddit data collection with PRAW integration and retry logic
+- ✅ NSFW content handling with include/exclude toggle and metadata capture
+- ✅ Edge case detection (removed/deleted, media-only, non-English, truncated)
+- ✅ Replicability logging with collection hash for reproducibility verification
 - ✅ LLM-assisted thematic coding with OpenAI GPT-5
 - ✅ PPM framework coding (Push/Pull/Mooring factors)
 - ✅ Codebook management with frequency tracking and persistence
@@ -84,7 +103,7 @@ Supporting PhD/Masters thesis research on consumer behavior in the natural cogni
 - ✅ CSV/JSON/Excel export for NVivo and MAXQDA
 - ✅ Topic modeling (TF-IDF, LDA, NMF) for theme validation
 - ✅ Inter-coder reliability (Cohen's Kappa, Krippendorff's Alpha)
-- ✅ Thesis export templates (Appendices A-E, Methodology Chapter)
+- ✅ Thesis export templates (Appendices A-F, Methodology Chapter)
 - ✅ Session logging and audit trails
 - ✅ Interactive dashboard with statistics
 - ✅ End-to-end testing passed
