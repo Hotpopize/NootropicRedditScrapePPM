@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import json
-from utils.db_helpers import load_replicability_logs, get_data_quality_report
+from utils.db_helpers import load_replicability_logs, get_data_quality_report, load_citation_links, load_zotero_references
 
 def render():
     st.header("Thesis Export Templates")
@@ -26,6 +26,7 @@ def render():
             "Appendix D: Thematic Analysis Summary",
             "Appendix E: Inter-Coder Reliability Report",
             "Appendix F: Data Quality & Edge Cases",
+            "Appendix G: Literature-Data Linkages",
             "Complete Methodology Chapter"
         ]
     )
@@ -47,6 +48,9 @@ def render():
     
     elif template_type == "Appendix F: Data Quality & Edge Cases":
         generate_data_quality_appendix()
+    
+    elif template_type == "Appendix G: Literature-Data Linkages":
+        generate_literature_linkages_appendix()
     
     elif template_type == "Complete Methodology Chapter":
         generate_complete_methodology()
@@ -526,6 +530,154 @@ All API rate limiting events are logged with:
         label="Download Appendix F (Markdown)",
         data=content,
         file_name=f"Appendix_F_Data_Quality_{datetime.now().strftime('%Y%m%d')}.md",
+        mime="text/markdown"
+    )
+
+def generate_literature_linkages_appendix():
+    st.subheader("Appendix G: Literature-Data Linkages")
+    
+    zotero_refs = load_zotero_references(limit=500)
+    citation_links = load_citation_links(limit=500)
+    replicability_logs = load_replicability_logs(limit=50)
+    
+    n_refs = len(zotero_refs)
+    n_links = len(citation_links)
+    n_collections = len(replicability_logs)
+    
+    linked_collection_hashes = set(link.get('collection_hash') for link in citation_links)
+    n_linked_collections = len(linked_collection_hashes)
+    
+    all_keywords = set()
+    for ref in zotero_refs:
+        if ref.get('keywords'):
+            all_keywords.update(ref['keywords'])
+    
+    data_source = "DATABASE" if zotero_refs else "NONE"
+    
+    content = f"""# Appendix G: Literature-Data Linkages
+
+## Overview
+
+This appendix documents the systematic connection between the literature review and data collection phases, demonstrating theoretical alignment per Creswell & Creswell (2023) mixed methods standards.
+
+## Zotero Library Integration
+
+### Citation Statistics
+- **Total References Synced**: {n_refs}
+- **Total Citations Linked to Collections**: {n_links}
+- **Collection Runs with Citations**: {n_linked_collections} of {n_collections}
+- **Unique Keywords Extracted**: {len(all_keywords)}
+- **Data Source**: {data_source}
+
+### Purpose of Literature-Data Linkage
+
+The integration of Zotero citations with Reddit data collection serves multiple methodological purposes:
+
+1. **Theoretical Grounding**: Keywords extracted from literature guide data collection to ensure theoretical relevance
+2. **Audit Trail**: Citation links document which theoretical frameworks informed each collection run
+3. **Reproducibility**: Explicit connection between literature and data supports study replication
+4. **Triangulation**: Literature-informed coding supports methodological triangulation
+
+## Keyword Extraction Methodology
+
+Keywords were extracted from Zotero references using:
+1. **Manual Tags**: Author-assigned tags from Zotero entries
+2. **Abstract Analysis**: Automated extraction of high-frequency domain terms from abstracts
+3. **Stop Word Filtering**: Common academic terms excluded (e.g., "study", "research", "method")
+
+### Top Literature Keywords
+"""
+    
+    if all_keywords:
+        keyword_list = sorted(list(all_keywords))[:30]
+        content += "\n".join([f"- {kw}" for kw in keyword_list])
+        content += "\n"
+    else:
+        content += "\n*No keywords available - sync Zotero library first*\n"
+    
+    content += "\n## Citation-Collection Mappings\n\n"
+    
+    if citation_links:
+        content += "| Collection Hash | Citation | Link Type | Linked At |\n"
+        content += "|-----------------|----------|-----------|------------|\n"
+        
+        for link in citation_links[:20]:
+            hash_short = link.get('collection_hash', 'N/A')[:8] + "..."
+            title_short = (link.get('title', 'Unknown')[:40] + "...") if len(link.get('title', '')) > 40 else link.get('title', 'Unknown')
+            link_type = link.get('link_type', 'manual')
+            linked_at = link.get('linked_at', 'N/A')[:10] if link.get('linked_at') else 'N/A'
+            
+            content += f"| {hash_short} | {title_short} | {link_type} | {linked_at} |\n"
+        
+        if len(citation_links) > 20:
+            content += f"\n*...and {len(citation_links) - 20} more linkages*\n"
+    else:
+        content += "*No citations linked to collection runs yet*\n"
+    
+    content += "\n## Linked References (APA Format)\n\n"
+    
+    linked_keys = set(link.get('zotero_key') for link in citation_links)
+    linked_refs = [ref for ref in zotero_refs if ref.get('zotero_key') in linked_keys]
+    
+    if linked_refs:
+        for ref in linked_refs[:15]:
+            citation = ref.get('citation_apa', 'Citation unavailable')
+            content += f"- {citation}\n"
+        
+        if len(linked_refs) > 15:
+            content += f"\n*...and {len(linked_refs) - 15} more references*\n"
+    else:
+        content += "*No references linked yet - use Zotero Citations module to link references*\n"
+    
+    content += f"""
+
+## Methodological Justification
+
+### Alignment with PPM Framework
+
+The Push-Pull-Mooring (PPM) framework keywords from the literature informed:
+1. **Push Factors**: Terms related to dissatisfaction with current cognitive enhancement methods
+2. **Pull Factors**: Terms related to attraction to natural supplement alternatives
+3. **Mooring Factors**: Terms related to switching costs, habits, and attachment
+
+### Literature-Guided Data Collection
+
+Data collection queries were informed by literature keywords to ensure:
+- Theoretical saturation of key concepts
+- Coverage of established constructs from prior research
+- Identification of emergent themes outside established frameworks
+
+## Quality Assurance
+
+- All linkages timestamped for audit trail
+- Citation data sourced from Zotero Web API
+- Keywords validated against domain-specific terminology
+- Regular synchronization maintains currency with evolving literature
+
+---
+
+**Report Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+**Total References**: {n_refs}
+**Total Linkages**: {n_links}
+**Data Source**: {data_source}
+"""
+    
+    st.markdown(content)
+    
+    if zotero_refs:
+        st.subheader("Reference Preview")
+        with st.expander("View Synced References", expanded=False):
+            for ref in zotero_refs[:10]:
+                st.markdown(f"**{ref.get('title', 'Untitled')}** ({ref.get('year', 'n.d.')})")
+                st.caption(ref.get('citation_apa', ''))
+                if ref.get('keywords'):
+                    st.caption(f"Keywords: {', '.join(ref['keywords'][:5])}")
+                st.divider()
+    
+    st.download_button(
+        label="Download Appendix G (Markdown)",
+        data=content,
+        file_name=f"Appendix_G_Literature_Linkages_{datetime.now().strftime('%Y%m%d')}.md",
         mime="text/markdown"
     )
 
