@@ -1,4 +1,4 @@
-from database import get_db_session, CollectedData, CodedData, Codebook, AuditLog, ReplicabilityLog
+from database import get_db_session, CollectedData, CodedData, Codebook, AuditLog, ReplicabilityLog, ZoteroReference, ZoteroCollectionLink
 from datetime import datetime
 import json
 
@@ -365,5 +365,170 @@ def get_data_quality_report():
             'non_english_items': non_english_items,
             'report_generated': datetime.utcnow().isoformat()
         }
+    finally:
+        db.close()
+
+
+def save_zotero_references(items, session_id):
+    db = get_db_session()
+    try:
+        saved_count = 0
+        for item in items:
+            existing = db.query(ZoteroReference).filter_by(zotero_key=item.get('zotero_key')).first()
+            
+            if existing:
+                existing.item_type = item.get('item_type')
+                existing.title = item.get('title')
+                existing.authors = item.get('authors', [])
+                existing.year = item.get('year')
+                existing.abstract = item.get('abstract')
+                existing.doi = item.get('doi')
+                existing.url = item.get('url')
+                existing.tags = item.get('tags', [])
+                existing.collections = item.get('collections', [])
+                existing.keywords = item.get('keywords', [])
+                existing.citation_apa = item.get('citation_apa')
+                existing.synced_at = datetime.utcnow()
+                existing.session_id = session_id
+            else:
+                record = ZoteroReference(
+                    zotero_key=item.get('zotero_key'),
+                    item_type=item.get('item_type'),
+                    title=item.get('title'),
+                    authors=item.get('authors', []),
+                    year=item.get('year'),
+                    abstract=item.get('abstract'),
+                    doi=item.get('doi'),
+                    url=item.get('url'),
+                    tags=item.get('tags', []),
+                    collections=item.get('collections', []),
+                    keywords=item.get('keywords', []),
+                    citation_apa=item.get('citation_apa'),
+                    session_id=session_id
+                )
+                db.add(record)
+            
+            saved_count += 1
+        
+        db.commit()
+        return saved_count
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def load_zotero_references(session_id=None, limit=200):
+    db = get_db_session()
+    try:
+        query = db.query(ZoteroReference)
+        
+        if session_id:
+            query = query.filter_by(session_id=session_id)
+        
+        query = query.order_by(ZoteroReference.synced_at.desc()).limit(limit)
+        
+        results = query.all()
+        
+        return [
+            {
+                'zotero_key': r.zotero_key,
+                'item_type': r.item_type,
+                'title': r.title,
+                'authors': r.authors or [],
+                'year': r.year,
+                'abstract': r.abstract,
+                'doi': r.doi,
+                'url': r.url,
+                'tags': r.tags or [],
+                'collections': r.collections or [],
+                'keywords': r.keywords or [],
+                'citation_apa': r.citation_apa,
+                'synced_at': r.synced_at.isoformat() if r.synced_at else None
+            }
+            for r in results
+        ]
+    finally:
+        db.close()
+
+
+def get_all_zotero_keywords():
+    db = get_db_session()
+    try:
+        results = db.query(ZoteroReference).all()
+        
+        all_keywords = set()
+        for r in results:
+            if r.keywords:
+                all_keywords.update(r.keywords)
+        
+        return sorted(list(all_keywords))
+    finally:
+        db.close()
+
+
+def save_citation_links(links, session_id):
+    db = get_db_session()
+    try:
+        saved_count = 0
+        for link in links:
+            existing = db.query(ZoteroCollectionLink).filter_by(
+                collection_hash=link.get('collection_hash'),
+                zotero_key=link.get('zotero_key')
+            ).first()
+            
+            if not existing:
+                record = ZoteroCollectionLink(
+                    collection_hash=link.get('collection_hash'),
+                    zotero_key=link.get('zotero_key'),
+                    link_type=link.get('link_type', 'manual'),
+                    relevance_score=link.get('relevance_score'),
+                    matched_keywords=link.get('matched_keywords'),
+                    session_id=session_id,
+                    notes=link.get('notes')
+                )
+                db.add(record)
+                saved_count += 1
+        
+        db.commit()
+        return saved_count
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def load_citation_links(collection_hash=None, limit=100):
+    db = get_db_session()
+    try:
+        query = db.query(ZoteroCollectionLink)
+        
+        if collection_hash:
+            query = query.filter_by(collection_hash=collection_hash)
+        
+        query = query.order_by(ZoteroCollectionLink.linked_at.desc()).limit(limit)
+        
+        results = query.all()
+        
+        links_with_refs = []
+        for r in results:
+            ref = db.query(ZoteroReference).filter_by(zotero_key=r.zotero_key).first()
+            
+            links_with_refs.append({
+                'collection_hash': r.collection_hash,
+                'zotero_key': r.zotero_key,
+                'link_type': r.link_type,
+                'relevance_score': r.relevance_score,
+                'matched_keywords': r.matched_keywords or [],
+                'linked_at': r.linked_at.isoformat() if r.linked_at else None,
+                'notes': r.notes,
+                'citation': ref.citation_apa if ref else None,
+                'title': ref.title if ref else None,
+                'year': ref.year if ref else None
+            })
+        
+        return links_with_refs
     finally:
         db.close()
