@@ -90,6 +90,39 @@ class ReplicabilityLog(Base):
     validation_results = Column(JSON, nullable=True)
     notes = Column(Text, nullable=True)
 
+class ZoteroReference(Base):
+    __tablename__ = 'zotero_references'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    zotero_key = Column(String, unique=True, index=True)
+    item_type = Column(String)
+    title = Column(Text)
+    authors = Column(JSON)
+    year = Column(String, nullable=True)
+    abstract = Column(Text, nullable=True)
+    doi = Column(String, nullable=True, index=True)
+    url = Column(Text, nullable=True)
+    tags = Column(JSON)
+    collections = Column(JSON)
+    keywords = Column(JSON)
+    citation_apa = Column(Text, nullable=True)
+    synced_at = Column(DateTime, default=datetime.utcnow)
+    session_id = Column(String, index=True)
+    extra_metadata = Column(JSON, nullable=True)
+
+class ZoteroCollectionLink(Base):
+    __tablename__ = 'zotero_collection_links'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    collection_hash = Column(String, index=True)
+    zotero_key = Column(String, index=True)
+    link_type = Column(String)
+    relevance_score = Column(Float, nullable=True)
+    matched_keywords = Column(JSON, nullable=True)
+    linked_at = Column(DateTime, default=datetime.utcnow)
+    session_id = Column(String, index=True)
+    notes = Column(Text, nullable=True)
+
 def init_db():
     Base.metadata.create_all(bind=engine)
 
