@@ -25,6 +25,8 @@ Supporting PhD/Masters thesis research on consumer behavior in the natural cogni
 - **codebook**: Theoretical and emergent code definitions
 - **audit_log**: Complete methodological audit trail
 - **replicability_log**: Collection parameters, statistics, and validation metrics for reproducibility
+- **zotero_references**: Synced Zotero library citations with extracted keywords
+- **zotero_collection_links**: Citation-to-collection links for audit trail documentation
 
 ### Key Features Implemented
 - ✅ Reddit data collection with PRAW integration
@@ -51,7 +53,17 @@ Supporting PhD/Masters thesis research on consumer behavior in the natural cogni
 - All methodological decisions must be logged
 - LLM coding requires human validation and oversight
 
-## Recent Changes (2025-11-27)
+## Recent Changes (2025-11-30)
+- ✅ Added Zotero citation manager integration with pyzotero library
+- ✅ New database models: ZoteroReference, ZoteroCollectionLink for citation persistence
+- ✅ Zotero API sync with keyword extraction from abstracts and tags
+- ✅ Literature-guided data collection: Zotero keywords available in Reddit scraper
+- ✅ Citation-to-collection linking for audit trail documentation
+- ✅ New Thesis Export Appendix G: Literature-Data Linkages
+- ✅ APA citation generation from Zotero metadata
+- ✅ Keyword selection UI for theoretically-grounded search queries
+
+## Previous Changes (2025-11-27)
 - ✅ Added comprehensive NSFW content handling with include/exclude toggle
 - ✅ Implemented edge case detection: removed/deleted content, media-only posts, non-English text, truncated content
 - ✅ Added ReplicabilityLog database model for collection parameter persistence and verification
@@ -103,14 +115,15 @@ Supporting PhD/Masters thesis research on consumer behavior in the natural cogni
 - ✅ CSV/JSON/Excel export for NVivo and MAXQDA
 - ✅ Topic modeling (TF-IDF, LDA, NMF) for theme validation
 - ✅ Inter-coder reliability (Cohen's Kappa, Krippendorff's Alpha)
-- ✅ Thesis export templates (Appendices A-F, Methodology Chapter)
+- ✅ Thesis export templates (Appendices A-G, Methodology Chapter)
 - ✅ Session logging and audit trails
 - ✅ Interactive dashboard with statistics
+- ✅ Zotero citation manager integration
+- ✅ Literature-guided data collection with keyword extraction
 - ✅ End-to-end testing passed
 
 ## Future Enhancements (Optional)
 - GPU-accelerated batch processing with RAPIDS cuDF
 - BERTopic integration as alternative to TF-IDF/LDA
-- Citation manager integration
 - Advanced visualization tools
 - Multi-user collaboration features
