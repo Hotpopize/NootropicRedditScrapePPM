@@ -43,12 +43,15 @@ st.subheader("Natural Cognitive Supplement Market Segmentation via Reddit Analys
 st.sidebar.title("Navigation")
 page = st.sidebar.radio(
     "Select Module",
-    ["📊 Dashboard", "🌐 Reddit Data Collection", "🤖 LLM-Assisted Coding", "📖 Codebook Management", "🔍 Topic Modeling", "📈 Inter-Coder Reliability", "📝 Thesis Exports", "💾 Data Export & Audit"]
+    ["📊 Dashboard", "📚 Zotero Citations", "🌐 Reddit Data Collection", "🤖 LLM-Assisted Coding", "📖 Codebook Management", "🔍 Topic Modeling", "📈 Inter-Coder Reliability", "📝 Thesis Exports", "💾 Data Export & Audit"]
 )
 
 if page == "📊 Dashboard":
     from modules import dashboard
     dashboard.render()
+elif page == "📚 Zotero Citations":
+    from modules import zotero_manager
+    zotero_manager.render()
 elif page == "🌐 Reddit Data Collection":
     from modules import reddit_scraper
     reddit_scraper.render()

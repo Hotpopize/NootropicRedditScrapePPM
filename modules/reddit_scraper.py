@@ -6,7 +6,7 @@ import json
 import os
 import hashlib
 import re
-from utils.db_helpers import save_collected_data, log_action, save_replicability_log
+from utils.db_helpers import save_collected_data, log_action, save_replicability_log, get_all_zotero_keywords
 from tenacity import retry, stop_after_attempt, wait_exponential
 from prawcore.exceptions import ResponseException
 
@@ -87,6 +87,33 @@ def render():
     
     st.divider()
     
+    zotero_keywords = get_all_zotero_keywords()
+    if zotero_keywords:
+        with st.expander("📚 Zotero-Informed Search Keywords", expanded=False):
+            st.markdown("**Keywords from your Zotero literature are available to guide data collection:**")
+            
+            col_a, col_b = st.columns([3, 1])
+            with col_a:
+                selected_zotero_kw = st.multiselect(
+                    "Select keywords from your literature",
+                    options=zotero_keywords,
+                    default=st.session_state.get('selected_zotero_keywords', [])[:5],
+                    help="These keywords are extracted from your synced Zotero references"
+                )
+                st.session_state.selected_zotero_keywords = selected_zotero_kw
+            
+            with col_b:
+                st.metric("Available Keywords", len(zotero_keywords))
+            
+            if selected_zotero_kw:
+                suggested_query = ' OR '.join(selected_zotero_kw[:5])
+                st.info(f"**Suggested search query:** `{suggested_query}`")
+                
+                if st.button("Use as Search Query"):
+                    st.session_state.zotero_search_query = suggested_query
+    
+    st.divider()
+    
     st.subheader("Data Collection Parameters")
     
     col1, col2 = st.columns(2)
@@ -99,10 +126,11 @@ def render():
         )
         subreddits = [s.strip() for s in subreddits_input.split('\n') if s.strip()]
         
+        default_query = st.session_state.get('zotero_search_query', '')
         search_query = st.text_input(
             "Search Query (optional)",
-            value="",
-            help="Leave empty to collect recent posts, or enter keywords"
+            value=default_query,
+            help="Leave empty to collect recent posts, or enter keywords. Use Zotero keywords above for literature-informed search."
         )
     
     with col2:
