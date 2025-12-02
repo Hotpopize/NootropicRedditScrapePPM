@@ -53,7 +53,15 @@ Supporting PhD/Masters thesis research on consumer behavior in the natural cogni
 - All methodological decisions must be logged
 - LLM coding requires human validation and oversight
 
-## Recent Changes (2025-11-30)
+## Recent Changes (2025-12-02)
+- ✅ Added automated replication package generator (`package_for_sharing.py`)
+- ✅ Created OSF (Open Science Framework) setup guide for academic sharing
+- ✅ Added `.env.example` template for researcher onboarding
+- ✅ Created Zotero integration methodology write-up for thesis inclusion
+- ✅ Added edge case documentation for Zotero sync limitations
+- ✅ Complete replication package guide with pre-sharing checklist
+
+## Previous Changes (2025-11-30)
 - ✅ Added Zotero citation manager integration with pyzotero library
 - ✅ New database models: ZoteroReference, ZoteroCollectionLink for citation persistence
 - ✅ Zotero API sync with keyword extraction from abstracts and tags
