@@ -82,7 +82,7 @@ def should_exclude(path):
     return False
 
 
-def copy_directory(src, dst, manifest):
+def copy_directory(src, dst, manifest, package_root=None):
     """Copy directory recursively, excluding unwanted files."""
     src_path = Path(src)
     dst_path = Path(dst)
@@ -99,14 +99,21 @@ def copy_directory(src, dst, manifest):
             dest_file = dst_path / relative
             dest_file.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(item, dest_file)
+            
+            # Record the relative path within the package for verification
+            if package_root:
+                pkg_rel_path = dest_file.relative_to(package_root)
+            else:
+                pkg_rel_path = dest_file
+            
             manifest["files"].append({
-                "path": str(Path(src) / relative),
+                "path": str(pkg_rel_path),
                 "hash": calculate_file_hash(item),
                 "size": item.stat().st_size
             })
 
 
-def copy_file(src, dst, manifest):
+def copy_file(src, dst, manifest, package_root=None):
     """Copy a single file."""
     src_path = Path(src)
     dst_path = Path(dst)
@@ -117,8 +124,15 @@ def copy_file(src, dst, manifest):
     
     dst_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src_path, dst_path)
+    
+    # Record the relative path within the package for verification
+    if package_root:
+        rel_path = dst_path.relative_to(package_root)
+    else:
+        rel_path = dst_path
+    
     manifest["files"].append({
-        "path": src,
+        "path": str(rel_path),
         "hash": calculate_file_hash(src_path),
         "size": src_path.stat().st_size
     })
@@ -263,17 +277,9 @@ def main():
     print(f"Checking {len(manifest['files'])} files...\\n")
     
     errors = []
+    verified = 0
     for file_info in manifest["files"]:
-        # Adjust path for package structure
-        pkg_path = file_info["path"]
-        if pkg_path.startswith("modules/") or pkg_path.startswith("utils/") or pkg_path.startswith(".streamlit/"):
-            check_path = Path("code") / pkg_path
-        elif pkg_path.startswith("docs/"):
-            check_path = Path(pkg_path)
-        elif pkg_path in ["app.py", "database.py", "requirements.txt", ".env.example", "replit.md"]:
-            check_path = Path("code") / pkg_path
-        else:
-            check_path = Path(pkg_path)
+        check_path = Path(file_info["path"])
         
         if not check_path.exists():
             errors.append(f"MISSING: {check_path}")
@@ -282,15 +288,18 @@ def main():
         current_hash = calculate_hash(check_path)
         if current_hash != file_info["hash"]:
             errors.append(f"MODIFIED: {check_path}")
+        else:
+            verified += 1
     
     if errors:
         print("VERIFICATION FAILED")
+        print(f"  Verified: {verified}/{len(manifest['files'])} files")
         for error in errors:
             print(f"  {error}")
         return False
     else:
         print("VERIFICATION PASSED")
-        print("All files intact and unmodified.")
+        print(f"All {verified} files intact and unmodified.")
         return True
 
 if __name__ == "__main__":
@@ -342,7 +351,7 @@ def create_package(output_dir, include_db=False):
     # Copy required files
     print("\nCopying core files...")
     for f in REQUIRED_FILES:
-        if copy_file(f, package_dir / "code" / f, manifest):
+        if copy_file(f, package_dir / "code" / f, manifest, package_dir):
             print(f"  Copied {f}")
     
     # Copy optional files (like requirements.txt or dependencies.txt)
@@ -352,7 +361,7 @@ def create_package(output_dir, include_db=False):
         if Path(f).exists():
             # Put dependencies.txt as requirements.txt in the package
             dst_name = "requirements.txt" if "dependencies" in f else Path(f).name
-            if copy_file(f, package_dir / "code" / dst_name, manifest):
+            if copy_file(f, package_dir / "code" / dst_name, manifest, package_dir):
                 print(f"  Copied {f} -> {dst_name}")
                 deps_copied = True
                 break  # Only need one dependency file
@@ -363,7 +372,7 @@ def create_package(output_dir, include_db=False):
     print("\nCopying code directories...")
     for d in CODE_DIRECTORIES:
         print(f"  Copying {d}/...")
-        copy_directory(d, package_dir / "code" / d, manifest)
+        copy_directory(d, package_dir / "code" / d, manifest, package_dir)
     
     # Copy documentation
     print("\nCopying documentation...")
@@ -374,12 +383,12 @@ def create_package(output_dir, include_db=False):
                 dst = package_dir / f
             else:
                 dst = package_dir / "docs" / src.name
-            if copy_file(f, dst, manifest):
+            if copy_file(f, dst, manifest, package_dir):
                 print(f"  Copied {f}")
     
     # Copy replit.md to docs
     if Path("replit.md").exists():
-        copy_file("replit.md", package_dir / "docs" / "project_documentation.md", manifest)
+        copy_file("replit.md", package_dir / "docs" / "project_documentation.md", manifest, package_dir)
     
     # Create README
     print("\nGenerating package files...")
