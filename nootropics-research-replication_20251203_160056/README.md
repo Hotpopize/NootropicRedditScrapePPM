@@ -1,7 +1,7 @@
 # Nootropics Market Segmentation Research Tool - Replication Package
 
 ## Package Information
-- **Generated**: 2025-12-03T15:48:27.598868
+- **Generated**: 2025-12-03T16:00:56.765607
 - **Package Version**: 1.0
 - **Total Files**: 23
 
@@ -44,7 +44,7 @@ Academic research tool for qualitative analysis of Reddit data using the Push-Pu
 - `app.py` - Main Streamlit application
 - `database.py` - SQLAlchemy database models
 - `modules/` - Analysis modules (Reddit scraper, LLM coder, etc.)
-- `utils/` - Helper functions
+- `utils/` - Helper functions including data anonymization
 
 ### Data (`/data`)
 - `raw/` - Original Reddit data exports
@@ -86,14 +86,13 @@ See `requirements.txt` for exact package versions used.
 
 ## Citation
 
-If you use this tool or data, please cite:
-```
-[Your citation here]
-```
+Please see `CITATION.cff` for citation information.
 
 ## License
 
-[Specify your license]
+See `LICENSE` file for licensing terms.
+- Code: MIT License
+- Data: CC-BY-4.0
 
 ## Contact
 
