@@ -1,7 +1,7 @@
 {
   "package_name": "nootropics-research-replication",
   "version": "1.0",
-  "generated_at": "2025-12-02T11:48:48.036559",
+  "generated_at": "2025-12-03T15:48:27.598868",
   "python_version": "3.11.13",
   "files": [
     {
@@ -18,6 +18,16 @@
       "path": "code/.env.example",
       "hash": "54ebd7792de60bd04ca2c868e6842e0d",
       "size": 2127
+    },
+    {
+      "path": "code/LICENSE",
+      "hash": "4932b66943ce471358a541717dfb9576",
+      "size": 1604
+    },
+    {
+      "path": "code/CITATION.cff",
+      "hash": "7d2b02de4031306bfb7b758383da11ce",
+      "size": 1411
     },
     {
       "path": "code/requirements.txt",
@@ -78,6 +88,11 @@
       "path": "code/utils/db_helpers.py",
       "hash": "6b9fa2d4f15d664bcb9eac9f7c07804d",
       "size": 17998
+    },
+    {
+      "path": "code/utils/anonymize_data.py",
+      "hash": "94ee64660e5c410a92fbf0fb5121fbb6",
+      "size": 13238
     },
     {
       "path": "code/.streamlit/config.toml",
