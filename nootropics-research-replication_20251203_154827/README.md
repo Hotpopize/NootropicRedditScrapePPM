@@ -1,9 +1,9 @@
 # Nootropics Market Segmentation Research Tool - Replication Package
 
 ## Package Information
-- **Generated**: 2025-12-02T11:48:48.036559
+- **Generated**: 2025-12-03T15:48:27.598868
 - **Package Version**: 1.0
-- **Total Files**: 20
+- **Total Files**: 23
 
 ## Description
 Academic research tool for qualitative analysis of Reddit data using the Push-Pull-Mooring (PPM) framework with LLM-assisted thematic coding, following Creswell & Creswell (2023) mixed methods standards.
