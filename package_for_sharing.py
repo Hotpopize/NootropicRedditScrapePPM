@@ -27,6 +27,8 @@ REQUIRED_FILES = [
     "app.py",
     "database.py",
     ".env.example",
+    "LICENSE",
+    "CITATION.cff",
 ]
 
 OPTIONAL_FILES = [
