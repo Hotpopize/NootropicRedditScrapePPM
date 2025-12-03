@@ -1,17 +1,36 @@
 #!/usr/bin/env python3
-"""Verify replication package integrity."""
-import json
+"""
+Package Integrity Verification Script
+======================================
+
+Verifies that all files in the replication package match their original
+hashes from the manifest. Detects modifications or missing files.
+
+Usage:
+    python verify_package.py
+"""
+
 import hashlib
+import json
 from pathlib import Path
 
-def calculate_hash(filepath):
+
+def calculate_hash(filepath: Path) -> str:
+    """Calculate MD5 hash of a file."""
     hash_md5 = hashlib.md5()
     with open(filepath, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
-def main():
+
+def main() -> bool:
+    """
+    Verify all files against manifest.
+    
+    Returns:
+        True if all files verified, False if any issues found
+    """
     manifest_path = Path("manifest.json")
     if not manifest_path.exists():
         print("ERROR: manifest.json not found")
@@ -25,6 +44,7 @@ def main():
     
     errors = []
     verified = 0
+    
     for file_info in manifest["files"]:
         check_path = Path(file_info["path"])
         
@@ -48,6 +68,7 @@ def main():
         print("VERIFICATION PASSED")
         print(f"All {verified} files intact and unmodified.")
         return True
+
 
 if __name__ == "__main__":
     import sys
