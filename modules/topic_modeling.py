@@ -134,17 +134,16 @@ def render():
         
         st.subheader("Compare with Manual Codes")
         
-        if st.session_state.codebook:
+        if 'codebook_manager' in st.session_state:
             st.markdown("**Your Current Codebook:**")
             
             all_codes = []
-            for category in ['push_factors', 'pull_factors', 'mooring_factors', 'emergent_themes']:
-                for code in st.session_state.codebook.get(category, []):
-                    all_codes.append({
-                        'Category': category.replace('_', ' ').title(),
-                        'Code': code.get('name'),
-                        'Frequency': code.get('frequency', 0)
-                    })
+            for code in st.session_state.codebook_manager.get_all():
+                all_codes.append({
+                    'Category': code.category.value.title(),
+                    'Code': code.name,
+                    'Frequency': code.frequency
+                })
             
             if all_codes:
                 codes_df = pd.DataFrame(all_codes)
@@ -158,7 +157,7 @@ def render():
                 - High-frequency words missing from your codebook warrant review
                 """)
             else:
-                st.warning("No codes in codebook yet. Run LLM coding first to compare.")
+                st.warning("No codes in codebook yet. Run Automated Coding first to compare.")
         
         st.subheader("Export Topics")
         

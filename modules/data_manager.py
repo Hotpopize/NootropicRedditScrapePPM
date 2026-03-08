@@ -14,7 +14,7 @@ def render():
     
     st.divider()
     
-    tab1, tab2, tab3 = st.tabs(["📥 Export Data", "📜 Audit Trail", "🔄 Session Management"])
+    tab1, tab1b, tab2, tab3 = st.tabs(["📥 Export Data", "📂 Upload Dataset", "📜 Audit Trail", "🔄 Session Management"])
     
     with tab1:
         st.subheader("Export Research Data")
@@ -51,7 +51,7 @@ def render():
                 }
                 filename_prefix = "research_data"
             else:
-                data_to_export = st.session_state.codebook
+                data_to_export = st.session_state.codebook_manager.to_dict()
                 filename_prefix = "codebook"
             
             if not data_to_export:
@@ -125,10 +125,56 @@ def render():
         with col2:
             st.metric("Coded Items", len(st.session_state.coded_data))
         
+        
         with col3:
-            total_codes = sum(len(v) for v in st.session_state.codebook.values())
+            total_codes = len(st.session_state.codebook_manager.get_all())
             st.metric("Codebook Entries", total_codes)
     
+    with tab1b:
+        st.subheader("📂 Upload External Dataset")
+        st.write("Upload a JSON file containing raw Reddit posts (e.g., mock data or previous exports) directly into your current session.")
+        
+        uploaded_dataset = st.file_uploader("Upload JSON Dataset", type=['json'], key="dataset_uploader")
+        
+        if uploaded_dataset is not None:
+            try:
+                new_data = json.load(uploaded_dataset)
+                
+                if isinstance(new_data, dict) and 'collected' in new_data:
+                    # Handle "Both" export format
+                    items_to_add = new_data['collected']
+                elif isinstance(new_data, list):
+                    # Handle raw list of posts
+                    items_to_add = new_data
+                else:
+                    st.error("Invalid JSON structure. Expected a list of posts.")
+                    items_to_add = []
+                
+                if items_to_add:
+                    st.write(f"**Found {len(items_to_add)} items in the uploaded dataset.**")
+                    
+                    if st.button("📥 Import into Collected Data", type="primary"):
+                        # Append to existing
+                        if 'collected_data' not in st.session_state:
+                            st.session_state.collected_data = []
+                            
+                        # Basic deduplication by ID
+                        existing_ids = {item.get('id') for item in st.session_state.collected_data if item.get('id')}
+                        added_count = 0
+                        
+                        for item in items_to_add:
+                            item_id = item.get('id')
+                            if not item_id or item_id not in existing_ids:
+                                st.session_state.collected_data.append(item)
+                                if item_id:
+                                    existing_ids.add(item_id)
+                                added_count += 1
+                        
+                        st.success(f"✅ Successfully imported {added_count} new items! (Skipped {len(items_to_add) - added_count} duplicates)")
+                        st.rerun()
+            except Exception as e:
+                st.error(f"Error reading JSON file: {e}")
+                
     with tab2:
         st.subheader("📜 Session Audit Trail")
         
@@ -147,7 +193,7 @@ def render():
             
             filter_action = st.selectbox(
                 "Filter by Action",
-                ["All", "data_collection", "llm_coding", "export"]
+                ["All", "data_collection", "automated_coding_ollama", "export"]
             )
             
             if filter_action != "All":
@@ -188,7 +234,7 @@ def render():
                 'saved_at': datetime.now().isoformat(),
                 'collected_data': st.session_state.collected_data,
                 'coded_data': st.session_state.coded_data,
-                'codebook': st.session_state.codebook
+                'codebook': st.session_state.codebook_manager.to_dict()
             }
             
             os.makedirs('exports', exist_ok=True)
@@ -225,12 +271,21 @@ def render():
                 if st.button("🔄 Load This Session", type="primary"):
                     st.session_state.collected_data = session_data.get('collected_data', [])
                     st.session_state.coded_data = session_data.get('coded_data', [])
-                    st.session_state.codebook = session_data.get('codebook', {
-                        'push_factors': [],
-                        'pull_factors': [],
-                        'mooring_factors': [],
-                        'emergent_themes': []
-                    })
+                    
+                    # Load codebook
+                    cb_data = session_data.get('codebook')
+                    if cb_data:
+                        # Handle both legacy dict format and new manager format
+                        if 'codes' in cb_data:
+                            from modules.codebook import CodebookManager
+                            st.session_state.codebook_manager = CodebookManager.from_dict(cb_data)
+                        else:
+                            # Convert legacy dict to manager
+                            from modules.codebook import CodebookManager, Code, CodeCategory, DEFAULT_CODES
+                            st.session_state.codebook_manager = CodebookManager() # Fallback/Reset
+                    else:
+                        from modules.codebook import CodebookManager
+                        st.session_state.codebook_manager = CodebookManager()
                     
                     st.success("✅ Session loaded successfully!")
                     st.rerun()
@@ -261,12 +316,11 @@ def render():
         if st.button("🗑️ Clear All Session Data", type="secondary"):
             st.session_state.collected_data = []
             st.session_state.coded_data = []
-            st.session_state.codebook = {
-                'push_factors': [],
-                'pull_factors': [],
-                'mooring_factors': [],
-                'emergent_themes': []
-            }
+        if st.button("🗑️ Clear All Session Data", type="secondary"):
+            st.session_state.collected_data = []
+            st.session_state.coded_data = []
+            from modules.codebook import CodebookManager
+            st.session_state.codebook_manager = CodebookManager()
             st.success("✅ All session data cleared")
             st.rerun()
 
