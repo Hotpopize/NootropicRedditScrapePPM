@@ -15,7 +15,7 @@ def render():
         st.metric("Items Coded", coded_count)
     
     with col3:
-        total_codes = sum(len(v) for v in st.session_state.codebook.values())
+        total_codes = len(st.session_state.codebook_manager.get_all())
         st.metric("Total Codes in Codebook", total_codes)
     
     with col4:
@@ -37,7 +37,7 @@ def render():
     
     **Methodology:** Mixed methods following Creswell & Creswell (2023)
     - Thematic analysis of posts and comments
-    - LLM-assisted coding with human oversight
+    - Automated qualitative coding with human oversight
     - Export to NVivo/MAXQDA for advanced analysis
     """)
     

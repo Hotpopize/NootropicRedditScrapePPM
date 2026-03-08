@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software or data, please cite it as below."
-title: "Academic Research Tool: Natural Cognitive Supplement Market Segmentation"
+title: "NootropicRedditScrapePPM: Natural Cognitive Supplement Market Segmentation"
 type: software
 authors:
   - family-names: "[Your Family Name]"
@@ -24,7 +24,7 @@ keywords:
 abstract: >-
   A Streamlit-based academic research tool for qualitative analysis of 
   Reddit data related to natural cognitive supplements (nootropics). 
-  Supports systematic data collection, LLM-assisted thematic coding 
+  Supports systematic data collection, automated qualitative thematic coding 
   using the Push-Pull-Mooring (PPM) framework, and rigorous 
   methodological documentation aligned with Creswell & Creswell (2023) 
   standards.

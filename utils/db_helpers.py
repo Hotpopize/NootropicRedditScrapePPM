@@ -1,6 +1,44 @@
-from database import get_db_session, CollectedData, CodedData, Codebook, AuditLog, ReplicabilityLog, ZoteroReference, ZoteroCollectionLink
+from core.database import get_db_session, CollectedData, CodedData, Codebook, AuditLog, ReplicabilityLog, ZoteroReference, ZoteroCollectionLink, ScrapeRun
 from datetime import datetime
 import json
+
+def create_scrape_run(job_id, config_hash, parameters, session_id=None):
+    db = get_db_session()
+    try:
+        run = ScrapeRun(
+            job_id=job_id,
+            status='RUNNING',
+            config_hash=config_hash,
+            parameters=parameters,
+            session_id=session_id
+        )
+        db.add(run)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+def update_scrape_run(job_id, status=None, items_collected=None, error_message=None):
+    db = get_db_session()
+    try:
+        run = db.query(ScrapeRun).filter_by(job_id=job_id).first()
+        if run:
+            if status:
+                run.status = status
+                if status in ['COMPLETED', 'FAILED', 'CANCELLED']:
+                    run.completed_at = datetime.utcnow()
+            if items_collected is not None:
+                run.items_collected = items_collected
+            if error_message:
+                run.error_message = error_message
+            db.commit()
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
 
 def save_collected_data(items, session_id):
     db = get_db_session()
@@ -157,37 +195,52 @@ def load_coded_data(session_id=None, limit=None):
     finally:
         db.close()
 
-def save_codebook(codebook_dict, session_id):
+def save_codebook(codebook_data, session_id):
     db = get_db_session()
     try:
         current_codes = set()
-        for category, codes in codebook_dict.items():
-            for code in codes:
-                current_codes.add((category, code.get('name')))
-                
-                existing = db.query(Codebook).filter_by(
-                    category=category,
-                    name=code.get('name')
-                ).first()
-                
-                if existing:
-                    existing.definition = code.get('definition')
-                    existing.examples = code.get('examples')
-                    existing.frequency = code.get('frequency', 0)
-                    existing.extra_metadata = code.get('metadata', {})
-                    existing.session_id = session_id
-                else:
-                    record = Codebook(
-                        category=category,
-                        name=code.get('name'),
-                        definition=code.get('definition'),
-                        examples=code.get('examples'),
-                        frequency=code.get('frequency', 0),
-                        session_id=session_id,
-                        extra_metadata=code.get('metadata', {})
-                    )
-                    db.add(record)
+        # Handle new format {'codes': [...]}
+        codes_list = codebook_data.get('codes', []) if isinstance(codebook_data, dict) else []
         
+        for code in codes_list:
+            category = code.get('category')
+            name = code.get('name')
+            current_codes.add((category, name))
+            
+            existing = db.query(Codebook).filter_by(
+                category=category,
+                name=name
+            ).first()
+            
+            # Pack extra fields into metadata
+            meta = {
+                'id': code.get('id'),
+                'include': code.get('include'),
+                'exclude': code.get('exclude'),
+                'source': code.get('source'),
+                'is_emergent_candidate': code.get('is_emergent_candidate'),
+                'created_at': code.get('created_at')
+            }
+            
+            if existing:
+                existing.definition = code.get('definition')
+                existing.examples = code.get('examples')
+                existing.frequency = code.get('frequency', 0)
+                existing.extra_metadata = meta
+                existing.session_id = session_id
+            else:
+                record = Codebook(
+                    category=category,
+                    name=name,
+                    definition=code.get('definition'),
+                    examples=code.get('examples'),
+                    frequency=code.get('frequency', 0),
+                    session_id=session_id,
+                    extra_metadata=meta
+                )
+                db.add(record)
+        
+        # Prune removed codes (Global prune as per original logic)
         all_db_codes = db.query(Codebook).all()
         for db_code in all_db_codes:
             if (db_code.category, db_code.name) not in current_codes:
@@ -207,14 +260,8 @@ def load_codebook(session_id=None):
             results = db.query(Codebook).filter_by(session_id=session_id).all()
         else:
             results = db.query(Codebook).all()
-        
-        codebook = {
-            'push_factors': [],
-            'pull_factors': [],
-            'mooring_factors': [],
-            'emergent_themes': []
-        }
-        
+            
+        codes_list = []
         seen_codes = {}
         for r in results:
             key = (r.category, r.name)
@@ -223,19 +270,24 @@ def load_codebook(session_id=None):
             
             seen_codes[key] = True
             
+            meta = r.extra_metadata or {}
+            
             code_data = {
+                'id': meta.get('id') or f"{r.category}-{r.name}",
+                'category': r.category,
                 'name': r.name,
                 'definition': r.definition,
                 'examples': r.examples,
                 'frequency': r.frequency,
-                'added_at': r.added_at.isoformat() if r.added_at else None,
-                'metadata': r.extra_metadata or {}
+                'include': meta.get('include', ''),
+                'exclude': meta.get('exclude', ''),
+                'source': meta.get('source', ''),
+                'is_emergent_candidate': meta.get('is_emergent_candidate', False),
+                'created_at': meta.get('created_at') or (r.added_at.isoformat() if r.added_at else None)
             }
-            
-            if r.category in codebook:
-                codebook[r.category].append(code_data)
+            codes_list.append(code_data)
         
-        return codebook
+        return {'codes': codes_list}
     finally:
         db.close()
 

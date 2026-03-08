@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Environment
+.env
+.venv/
+venv/
+env/
+
+# Database
+*.db
+*.sqlite3
+
+# IDE
+.idea/
+.vscode/
+
+
+.pythonlibs/
+poetry.lock
+uv.lock
+
+# Project Data (user-generated)
+data/
+exports/
+logs/
+temp/
+attached_assets/
+
+# Output Files
+*.log
+*.csv
+*.xlsx
+*.zip
+
+# JSON (except config files)
+*.json
+!CITATION.cff
+
+# Test/Coverage
+.pytest_cache/
+.coverage
+htmlcov/

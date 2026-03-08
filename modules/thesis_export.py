@@ -750,7 +750,7 @@ LLM-assisted thematic coding using OpenAI GPT-5 was employed to identify pattern
 - Data limited to Reddit users (self-selection bias)
 - English-language content only
 - Temporal specificity of data collection
-- LLM-assisted coding requires human validation
+- Automated coding requires human validation
 
 ## 3.6 Rigor and Trustworthiness
 
