@@ -1,12 +1,96 @@
 import praw
+import prawcore
 from datetime import datetime
 import json
 import hashlib
+import time
+import logging
 from typing import Generator, Union
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    before_sleep_log
+)
 
-from core.schemas import RedditCredentials, CollectionParams, CollectionProgress, CollectionResult, CollectionStats
+from core.schemas import RedditCredentials, CollectionParams, CollectionProgress, CollectionResult, CollectionStats, RateLimitConfig
 from utils.db_helpers import save_collected_data, update_scrape_run
 from modules.codebook import get_ppm_keywords
+
+logger = logging.getLogger(__name__)
+
+# =============================================================================
+# RATE LIMITER CLASS
+# =============================================================================
+
+class RateLimiter:
+    """Token bucket rate limiter for Reddit API compliance."""
+    
+    def __init__(self, requests_per_minute: int = 60):
+        self.requests_per_minute = requests_per_minute
+        self.min_interval = 60.0 / requests_per_minute
+        self.last_request_time = 0.0
+        self.request_count = 0
+        self.window_start = time.time()
+    
+    def wait(self):
+        """Block until next request is allowed."""
+        now = time.time()
+        
+        # Reset window every minute
+        if now - self.window_start >= 60:
+            self.request_count = 0
+            self.window_start = now
+        
+        # Check if we've hit the limit this window
+        if self.request_count >= self.requests_per_minute:
+            sleep_time = 60 - (now - self.window_start)
+            if sleep_time > 0:
+                logger.info(f"Rate limit: sleeping {sleep_time:.1f}s")
+                time.sleep(sleep_time)
+            self.request_count = 0
+            self.window_start = time.time()
+        
+        # Enforce minimum interval between requests
+        elapsed = now - self.last_request_time
+        if elapsed < self.min_interval:
+            time.sleep(self.min_interval - elapsed)
+        
+        self.last_request_time = time.time()
+        self.request_count += 1
+    
+    def get_stats(self) -> dict:
+        return {
+            "requests_this_window": self.request_count,
+            "window_remaining_seconds": 60 - (time.time() - self.window_start),
+            "requests_per_minute_limit": self.requests_per_minute
+        }
+
+
+# =============================================================================
+# RETRY DECORATOR
+# =============================================================================
+
+def reddit_retry(func):
+    """Decorator for Reddit API calls with exponential backoff."""
+    config = RateLimitConfig()
+    return retry(
+        retry=retry_if_exception_type((
+            prawcore.exceptions.TooManyRequests,
+            prawcore.exceptions.ServerError,
+            prawcore.exceptions.ResponseException,
+        )),
+        stop=stop_after_attempt(config.max_retries),
+        wait=wait_exponential(
+            multiplier=config.backoff_base,
+            min=4,
+            max=config.backoff_max
+        ),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True
+    )(func)
+
 
 def get_ppm_tags(text):
     if not text:
@@ -80,6 +164,38 @@ class RedditService:
             client_secret=credentials.client_secret,
             user_agent=final_user_agent
         )
+        config = RateLimitConfig()
+        self.rate_limiter = RateLimiter(requests_per_minute=config.requests_per_minute)
+
+    @reddit_retry
+    def _fetch_comments_with_retry(self, post, limit: int):
+        """Fetch comments with rate limiting."""
+        self.rate_limiter.wait()
+        post.comments.replace_more(limit=0)
+        return post.comments.list()[:limit]
+
+    @reddit_retry
+    def _get_subreddit(self, name: str):
+        """Fetch subreddit with retry protection."""
+        self.rate_limiter.wait()
+        sub = self.reddit.subreddit(name)
+        _ = sub.id  # Force API call within retry scope
+        return sub
+
+    @reddit_retry
+    def _fetch_posts(self, subreddit, method: str, limit: int, time_filter: str = "week", query: str = None) -> list:
+        """Fetch posts with rate limiting and retry."""
+        self.rate_limiter.wait()
+        
+        if method == "hot":
+            return list(subreddit.hot(limit=limit))
+        elif method == "new":
+            return list(subreddit.new(limit=limit))
+        elif method == "top":
+            return list(subreddit.top(time_filter=time_filter, limit=limit))
+        elif method == "search" and query:
+            return list(subreddit.search(query, limit=limit))
+        return list(subreddit.hot(limit=limit))
 
     def verify_credentials(self) -> bool:
         try:
@@ -106,27 +222,33 @@ class RedditService:
             yield CollectionProgress(
                 current_subreddit=subreddit_name,
                 progress_percentage=idx / total_subreddits,
-                status_message=f"Processing r/{subreddit_name}..."
+                status_message=f"Processing r/{subreddit_name}...",
+                rate_stats=self.rate_limiter.get_stats()
             )
 
             try:
-                subreddit = self.reddit.subreddit(subreddit_name)
+                subreddit = self._get_subreddit(subreddit_name)
                 subreddit_nsfw = getattr(subreddit, 'over18', False)
 
                 if subreddit_nsfw and not params.include_nsfw:
                     stats.skipped_nsfw += 1
                     continue
 
-                if params.method == "Recent Posts (Hot)":
-                    posts = subreddit.hot(limit=params.limit)
-                elif params.method == "Recent Posts (New)":
-                    posts = subreddit.new(limit=params.limit)
-                elif params.method == "Top Posts (Time Period)":
-                    posts = subreddit.top(time_filter=params.time_filter, limit=params.limit)
-                elif params.method == "Search Query" and params.search_query:
-                    posts = subreddit.search(params.search_query, limit=params.limit)
-                else:
-                    posts = subreddit.hot(limit=params.limit)
+                method_map = {
+                    "Recent Posts (Hot)": "hot",
+                    "Recent Posts (New)": "new",
+                    "Top Posts (Time Period)": "top",
+                    "Search Query": "search"
+                }
+                method = method_map.get(params.method, "hot")
+
+                posts = self._fetch_posts(
+                    subreddit,
+                    method=method,
+                    limit=params.limit,
+                    time_filter=params.time_filter,
+                    query=params.search_query
+                )
 
                 for post in posts:
                     post_nsfw = getattr(post, 'over_18', False)
@@ -194,8 +316,8 @@ class RedditService:
 
                     if params.collect_comments and post.num_comments > 0:
                         try:
-                            post.comments.replace_more(limit=0)
-                            for comment in post.comments.list()[:params.comment_limit]:
+                            comments_list = self._fetch_comments_with_retry(post, params.comment_limit)
+                            for comment in comments_list:
                                 comment_text = comment.body[:params.max_text_length] if comment.body else ''
                                 comment_status = detect_content_status(comment_text, str(comment.author))
 
@@ -258,19 +380,40 @@ class RedditService:
                         if hasattr(params, 'job_id') and params.job_id:
                             update_scrape_run(params.job_id, items_collected=total_saved_count)
 
+                    yield CollectionProgress(
+                        current_subreddit=subreddit_name,
+                        progress_percentage=idx / total_subreddits,
+                        status_message=f"Processing post from r/{subreddit_name}...",
+                        rate_stats=self.rate_limiter.get_stats()
+                    )
+
+            except prawcore.exceptions.TooManyRequests as e:
+                rate_limit_events.append({
+                    'type': 'rate_limit_hard',
+                    'subreddit': subreddit_name,
+                    'error': str(e),
+                    'timestamp': datetime.utcnow().isoformat()
+                })
+                logger.warning(f"Hard rate limit on r/{subreddit_name}, waiting 60s")
+                time.sleep(60)
+                continue
+                
+            except prawcore.exceptions.Forbidden:
+                logger.info(f"r/{subreddit_name} is private/banned, skipping")
+                continue
+                
+            except prawcore.exceptions.NotFound:
+                logger.info(f"r/{subreddit_name} not found, skipping")
+                continue
+                
             except Exception as e:
+                logger.error(f"Unexpected error on r/{subreddit_name}: {e}")
                 error_msg = str(e)
-                if 'rate' in error_msg.lower() or 'limit' in error_msg.lower():
-                    rate_limit_events.append({
-                        'type': 'rate_limit',
-                        'subreddit': subreddit_name,
-                        'error': error_msg,
-                        'timestamp': datetime.utcnow().isoformat()
-                    })
                 yield CollectionProgress(
                     current_subreddit=subreddit_name,
                     progress_percentage=idx / total_subreddits,
-                    status_message=f"Error processing r/{subreddit_name}: {error_msg}"
+                    status_message=f"Error processing r/{subreddit_name}: {error_msg}",
+                    rate_stats=self.rate_limiter.get_stats()
                 )
                 
         # Final flush of any remaining buffer

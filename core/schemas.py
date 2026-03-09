@@ -1,4 +1,4 @@
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, Field
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 from enum import Enum
@@ -7,6 +7,16 @@ class RedditCredentials(BaseModel):
     client_id: str
     client_secret: str
     user_agent: str
+
+class RateLimitConfig(BaseModel):
+    """Reddit API rate limiting configuration."""
+    requests_per_minute: int = Field(default=50, ge=1, le=60, description="Target requests per minute")
+    max_retries: int = Field(default=5, ge=1, le=10, description="Retry attempts on rate limit")
+    backoff_base: float = Field(default=2.0, description="Exponential backoff multiplier")
+    backoff_max: int = Field(default=120, description="Maximum backoff wait in seconds")
+    
+    class Config:
+        env_prefix = "REDDIT_RATELIMIT_"
 
 class CollectionParams(BaseModel):
     subreddits: List[str]
@@ -88,6 +98,8 @@ class CollectionProgress(BaseModel):
     current_subreddit: str
     progress_percentage: float
     status_message: str
+    rate_stats: Optional[Dict[str, Any]] = None
+    eta_seconds: Optional[float] = None
 
 class CollectionResult(BaseModel):
     collection_hash: str
