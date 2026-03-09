@@ -290,6 +290,12 @@ def render():
             if job_state.progress:
                 st.progress(job_state.progress.progress_percentage)
                 st.text(job_state.progress.status_message)
+                
+                if job_state.progress.rate_stats:
+                    rate = job_state.progress.rate_stats
+                    col1, col2, col3 = st.columns(3)
+                    col1.metric("API Budget", f"{rate.get('requests_this_window', 0)}/{rate.get('requests_per_minute_limit', 60)}")
+                    col2.metric("Window Resets", f"{rate.get('window_remaining_seconds', 0):.0f}s")
             else:
                 st.progress(0.0)
                 st.text("Initializing data collection stream...")
