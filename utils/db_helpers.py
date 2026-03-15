@@ -61,7 +61,8 @@ def save_collected_data(items, session_id):
                     permalink=item.get('permalink'),
                     post_id=item.get('post_id'),
                     session_id=session_id,
-                    extra_metadata=item.get('metadata', {})
+                    extra_metadata=item.get('metadata', {}),
+                    data_source=item.get('data_source', 'praw')
                 )
                 db.add(record)
                 saved_count += 1
@@ -106,11 +107,40 @@ def load_collected_data(session_id=None, subreddit=None, limit=None):
                 'url': r.url,
                 'permalink': r.permalink,
                 'post_id': r.post_id,
+                'data_source': r.data_source or 'praw',
                 'collected_at': r.collected_at.isoformat() if r.collected_at else None,
                 'metadata': r.extra_metadata or {}
             }
             for r in results
         ]
+    finally:
+        db.close()
+
+def get_items_for_compliance_check():
+    db = get_db_session()
+    try:
+        results = db.query(CollectedData).all()
+        return [
+            {
+                'id': r.reddit_id,
+                'type': r.type
+            }
+            for r in results
+        ]
+    finally:
+        db.close()
+
+def delete_collected_data_by_ids(reddit_ids):
+    db = get_db_session()
+    try:
+        deleted_count = db.query(CollectedData).filter(
+            CollectedData.reddit_id.in_(reddit_ids)
+        ).delete(synchronize_session=False)
+        db.commit()
+        return deleted_count
+    except Exception as e:
+        db.rollback()
+        raise e
     finally:
         db.close()
 

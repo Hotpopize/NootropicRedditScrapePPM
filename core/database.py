@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, JSON, Float, text
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, JSON, Float, text, inspect
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
 from datetime import datetime
@@ -33,6 +33,15 @@ def init_db():
         with engine.connect() as connection:
             connection.execute(text("PRAGMA journal_mode=WAL;"))
             connection.commit()
+            
+        inspector = inspect(engine)
+        cols = [c["name"] for c in inspector.get_columns("collected_data")]
+        if "data_source" not in cols:
+            with engine.connect() as conn:
+                conn.execute(text(
+                    "ALTER TABLE collected_data ADD COLUMN data_source VARCHAR DEFAULT 'praw'"
+                ))
+                conn.commit()
 
 
 
@@ -55,6 +64,7 @@ class CollectedData(Base):
     collected_at = Column(DateTime, default=datetime.utcnow)
     session_id = Column(String, index=True)
     extra_metadata = Column(JSON, nullable=True)
+    data_source = Column(String, nullable=True, default='praw')
 
 class CodedData(Base):
     __tablename__ = 'coded_data'

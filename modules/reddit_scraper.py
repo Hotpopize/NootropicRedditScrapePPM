@@ -223,26 +223,75 @@ def render():
 
     st.divider()
 
+    st.subheader("Data Source Selection")
+    
+    if 'data_source_preference' not in st.session_state:
+        st.session_state.data_source_preference = "Auto (recommended)"
+
+    data_source = st.radio(
+        "Data Source",
+        ["Auto (recommended)", "PRAW", "JSON Endpoint"],
+        index=["Auto (recommended)", "PRAW", "JSON Endpoint"].index(
+            st.session_state.data_source_preference
+        ),
+        horizontal=True,
+        key="data_source_radio"
+    )
+    st.session_state.data_source_preference = data_source
+    
+    use_json = (
+        st.session_state.data_source_preference == "JSON Endpoint" or
+        (st.session_state.data_source_preference == "Auto (recommended)" and
+         not st.session_state.get('reddit_credentials', {}).get('client_id'))
+    )
+
+    if use_json:
+        st.warning(
+            "⚠️ **JSON Mode Active** — No API credentials detected. "
+            "Data will be collected from Reddit's public JSON endpoints. "
+            "This is ToS-compliant for non-commercial academic use. "
+            "Collection method will be recorded in the audit trail.",
+            icon="⚠️"
+        )
+        
     if 'scraping_job_id' not in st.session_state:
         st.session_state.scraping_job_id = None
 
     if st.button("Start Data Collection", type="primary", disabled=st.session_state.scraping_job_id is not None):
-        if 'reddit_credentials' not in st.session_state or not st.session_state.reddit_credentials.get('client_id'):
-            st.error("Please configure Reddit API credentials first")
-            return
-
         try:
             from core.schemas import RedditCredentials, CollectionParams
-            from services.reddit_service import RedditService
             from services.job_manager import JobManager
-
-            creds_data = st.session_state.reddit_credentials
-            creds = RedditCredentials(
-                client_id=creds_data['client_id'],
-                client_secret=creds_data['client_secret'],
-                user_agent=creds_data['user_agent']
+            
+            # Resolve which service to use
+            creds = st.session_state.get('reddit_credentials', {})
+            has_credentials = bool(creds.get('client_id') and creds.get('client_secret'))
+            pref = st.session_state.data_source_preference
+            
+            use_praw = (
+                pref == "PRAW" or
+                (pref == "Auto (recommended)" and has_credentials)
             )
-            service = RedditService(creds)
+            
+            if use_praw and not has_credentials:
+                st.error("PRAW selected but no credentials configured.")
+                return
+            
+            if use_praw:
+                from services.reddit_service import RedditService
+                creds_obj = RedditCredentials(
+                    client_id=creds['client_id'],
+                    client_secret=creds['client_secret'],
+                    user_agent=creds.get('user_agent', 'AcademicResearch:NootropicsStudy:v1.0 (by /u/YourUsername)')
+                )
+                service = RedditService(creds_obj)
+                st.session_state.active_data_source = 'praw'
+                final_user_agent = creds_obj.user_agent
+            else:
+                from services.reddit_json_service import RedditJSONService
+                user_agent_val = creds.get('user_agent', None)
+                service = RedditJSONService(user_agent=user_agent_val)
+                st.session_state.active_data_source = 'json_endpoint'
+                final_user_agent = service.user_agent
 
             params = CollectionParams(
                 subreddits=subreddits,
@@ -257,7 +306,7 @@ def render():
                 include_media_only=include_media_only,
                 flag_non_english=flag_non_english,
                 max_text_length=max_text_length,
-                user_agent=creds.user_agent,
+                user_agent=final_user_agent,
                 min_word_count_val=min_word_count_val
             )
 
@@ -342,8 +391,8 @@ def render():
             collection_params['collection_completed'] = final_result.collection_completed
             collection_params['collection_hash'] = collection_hash
             collection_params['rate_limit_events'] = rate_limit_events
-            # Save data
-            saved_count = save_collected_data(collected_posts, st.session_state.session_id)
+            # Save data (already done incrementally in background thread)
+            saved_count = final_result.stats.total_collected
             
             # Log replicability
             save_replicability_log(
@@ -361,7 +410,8 @@ def render():
                     'include_removed': include_removed,
                     'include_media_only': include_media_only,
                     'flag_non_english': flag_non_english,
-                    'max_text_length': max_text_length
+                    'max_text_length': max_text_length,
+                    'data_source': st.session_state.get('active_data_source', 'praw')
                 },
                 statistics=final_result.stats.model_dump(),
                 rate_limit_events=rate_limit_events if rate_limit_events else None,
@@ -373,7 +423,7 @@ def render():
             log_action(
                 action='data_collection',
                 session_id=st.session_state.session_id,
-                details={'collection_hash': collection_hash, 'saved_count': saved_count}
+                details={'collection_hash': collection_hash, 'saved_count': saved_count, 'data_source': st.session_state.get('active_data_source', 'praw')}
             )
 
             st.session_state.collected_data = collected_posts

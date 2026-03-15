@@ -24,7 +24,7 @@ class JobManager:
         return cls._instance
 
     @classmethod
-    def start_job(cls, reddit_service: RedditService, params: CollectionParams) -> str:
+    def start_job(cls, reddit_service: Any, params: CollectionParams) -> str:
         """
         Spins up a background thread to execute the RedditService.collect_data generator.
         """

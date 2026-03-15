@@ -1,7 +1,10 @@
 import streamlit as st
 import json
 import os
+import logging
 from datetime import datetime
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 from core.database import init_db
 from utils.db_helpers import load_collected_data, load_coded_data, load_codebook
 from utils.model_setup import validate_models

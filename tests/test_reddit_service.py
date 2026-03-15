@@ -17,7 +17,8 @@ class TestRateLimiter:
         
         assert elapsed >= 1.0  # At least 1 second for 2 requests at 60 rpm
     
-    def test_resets_window_after_60_seconds(self):
+    @patch('time.sleep')
+    def test_resets_window_after_60_seconds(self, mock_sleep):
         limiter = RateLimiter(requests_per_minute=2)
         
         limiter.wait()
