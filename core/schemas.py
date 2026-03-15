@@ -17,7 +17,6 @@ Runtime usage notes
 - RedditItemMetadata    — reference schema only; metadata embedded in item dict under 'metadata' key
 
 Pydantic version: >=2.0.0 (see pyproject.toml)
-NOTE: requirements.txt is missing 'pydantic' — add pydantic>=2.0.0 to requirements.txt
 
 Migration notes
 ---------------
