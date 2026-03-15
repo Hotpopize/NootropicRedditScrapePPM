@@ -16,16 +16,15 @@ THESIS_SUBREDDITS = [
 def render():
     st.header("Data Collection")
 
-    st.info("""
-    **PRAW (Python Reddit API Wrapper)** enables systematic data collection from Reddit.
+    creds = st.session_state.get('reddit_credentials', {})
+    has_creds = bool(creds.get('client_id') and creds.get('client_secret'))
+    pref = st.session_state.get('data_source_preference', 'Auto (recommended)')
+    active_mode = 'praw' if (pref == 'PRAW' or (pref == 'Auto (recommended)' and has_creds)) else 'json'
 
-    To use this tool, you'll need Reddit API credentials:
-    1. Go to https://www.reddit.com/prefs/apps
-    2. Click "Create App" or "Create Another App"
-    3. Select "script" as the app type
-    4. Fill in the required fields
-    5. Copy your client ID, client secret, and set a user agent
-    """)
+    if active_mode == 'praw':
+        st.success("🔑 **Collection Mode: Reddit API (PRAW)** — Authenticated access active. Configure credentials below.")
+    else:
+        st.warning("🌐 **Collection Mode: JSON Endpoint** — No credentials required. Using Reddit's public endpoints. ToS-compliant for non-commercial academic use.")
 
     with st.expander("Reddit API Configuration", expanded=False):
         client_id = st.text_input("Client ID", type="password", help="Found under the app name")
@@ -130,15 +129,6 @@ def render():
             value=default_query if default_query else '(adderall OR ritalin OR caffeine OR modafinil) AND (lions mane OR ashwagandha OR bacopa OR noopept)',
             help="Leave empty to collect recent posts, or enter keywords. Use Zotero keywords above for literature-informed search."
         )
-        subreddits = [s.strip() for s in subreddits_input.split('\n') if s.strip()]
-
-        default_query = st.session_state.get('zotero_search_query', '')
-        search_query = st.text_input(
-            "Search Query (optional)",
-            value=default_query if default_query else '(adderall OR ritalin OR caffeine OR modafinil) AND (lions mane OR ashwagandha OR bacopa OR noopept)',
-            help="Leave empty to collect recent posts, or enter keywords. Use Zotero keywords above for literature-informed search."
-        )
-
     with col2:
         collection_method = st.selectbox(
             "Collection Method",
@@ -161,7 +151,16 @@ def render():
             help="Reddit API limits apply"
         )
 
-        collect_comments = st.checkbox("Collect Comments", value=True)
+        pref_src = st.session_state.get('data_source_preference', 'Auto (recommended)')
+        has_creds = bool(st.session_state.get('reddit_credentials', {}).get('client_id'))
+        use_json_mode = (pref_src == "JSON Endpoint" or (pref_src == "Auto (recommended)" and not has_creds))
+        
+        collect_comments = st.checkbox(
+            "Collect Comments",
+            value=True,
+            disabled=use_json_mode,
+            help="Comment collection not available in JSON mode." if use_json_mode else "Collect top comments per post."
+        )
 
         if collect_comments:
             comment_limit = st.number_input(
@@ -247,7 +246,7 @@ def render():
 
     if use_json:
         st.warning(
-            "⚠️ **JSON Mode Active** — No API credentials detected. "
+            "**JSON Mode Active** — No API credentials detected. "
             "Data will be collected from Reddit's public JSON endpoints. "
             "This is ToS-compliant for non-commercial academic use. "
             "Collection method will be recorded in the audit trail.",
@@ -343,7 +342,13 @@ def render():
                 if job_state.progress.rate_stats:
                     rate = job_state.progress.rate_stats
                     col1, col2, col3 = st.columns(3)
-                    col1.metric("API Budget", f"{rate.get('requests_this_window', 0)}/{rate.get('requests_per_minute_limit', 60)}")
+                    
+                    pref_poll = st.session_state.get('data_source_preference', 'Auto (recommended)')
+                    has_creds_poll = bool(st.session_state.get('reddit_credentials', {}).get('client_id'))
+                    use_json_poll = (pref_poll == "JSON Endpoint" or (pref_poll == "Auto (recommended)" and not has_creds_poll))
+                    budget_label = "API Budget" if not use_json_poll else "Request Budget"
+                    
+                    col1.metric(budget_label, f"{rate.get('requests_this_window', 0)}/{rate.get('requests_per_minute_limit', 60)}")
                     col2.metric("Window Resets", f"{rate.get('window_remaining_seconds', 0):.0f}s")
             else:
                 st.progress(0.0)
@@ -387,10 +392,13 @@ def render():
             collection_hash = final_result.collection_hash
             collected_posts = final_result.collected_posts
             rate_limit_events = final_result.rate_limit_events
-            collection_params = params.model_dump()
-            collection_params['collection_completed'] = final_result.collection_completed
-            collection_params['collection_hash'] = collection_hash
-            collection_params['rate_limit_events'] = rate_limit_events
+            collection_params = {
+                **(final_result.collected_posts[0].get('metadata', {}) if final_result.collected_posts else {}),
+                'collection_completed': final_result.collection_completed,
+                'collection_hash': collection_hash,
+                'rate_limit_events': rate_limit_events,
+                'data_source': st.session_state.get('active_data_source', 'praw')
+            }
             # Save data (already done incrementally in background thread)
             saved_count = final_result.stats.total_collected
             
@@ -426,15 +434,16 @@ def render():
                 details={'collection_hash': collection_hash, 'saved_count': saved_count, 'data_source': st.session_state.get('active_data_source', 'praw')}
             )
 
-            st.session_state.collected_data = collected_posts
+            from utils.db_helpers import load_collected_data
+            st.session_state.collected_data = load_collected_data(session_id=None, limit=10000)
             st.session_state.active_hash = collection_hash
             
             if 'collection_runs' not in st.session_state:
                 st.session_state.collection_runs = []
             st.session_state.collection_runs.append(collection_params)
 
-            posts_count = sum(1 for p in collected_posts if p['type'] == 'submission')
-            comments_count = sum(1 for p in collected_posts if p['type'] == 'comment')
+            posts_count = sum(1 for p in st.session_state.collected_data if p.get('type') == 'submission')
+            comments_count = sum(1 for p in st.session_state.collected_data if p.get('type') == 'comment')
 
             st.success(f"Successfully collected and saved {saved_count} items ({posts_count} posts, {comments_count} comments)")
 
@@ -442,7 +451,7 @@ def render():
                 col_a, col_b, col_c = st.columns(3)
 
                 with col_a:
-                    st.metric("Total Items", len(collected_posts))
+                    st.metric("Total Items", len(st.session_state.collected_data))
                     st.metric("Posts", posts_count)
                     st.metric("Comments", comments_count)
 
@@ -496,7 +505,22 @@ def render():
         elif filter_type == "Comments Only":
             df_display = df_display[df_display['type'] == 'comment']
 
-        display_cols = ['type', 'subreddit', 'title', 'author', 'score', 'text']
+        df_display['_nsfw'] = df_display.apply(
+            lambda r: r.get('metadata', {}).get('nsfw', False) if isinstance(r.get('metadata'), dict) else False, axis=1
+        )
+        df_display['_status'] = df_display.apply(
+            lambda r: r.get('metadata', {}).get('content_status', 'available') if isinstance(r.get('metadata'), dict) else 'available', axis=1
+        )
+        
+        if filter_nsfw == "NSFW Only":
+            df_display = df_display[df_display['_nsfw'] == True]
+        elif filter_nsfw == "Non-NSFW Only":
+            df_display = df_display[df_display['_nsfw'] == False]
+
+        if filter_status == "Available Only":
+            df_display = df_display[df_display['_status'] == 'available']
+
+        display_cols = ['data_source', 'type', 'subreddit', 'title', 'author', 'score', 'text']
         available_cols = [c for c in display_cols if c in df_display.columns]
 
         st.dataframe(

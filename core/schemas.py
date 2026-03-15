@@ -34,6 +34,8 @@ class CollectionParams(BaseModel):
     collection_started: Optional[str] = None
     user_agent: Optional[str] = None
     min_word_count_val: int = 0
+    job_id: Optional[str] = None
+    session_id: Optional[str] = None
 
 class RedditItemMetadata(BaseModel):
     nsfw: bool = False

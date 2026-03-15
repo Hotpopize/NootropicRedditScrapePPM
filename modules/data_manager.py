@@ -183,17 +183,15 @@ def render():
         This is essential for demonstrating rigor and replicability in qualitative research.
         """)
         
-        audit_file = f'logs/audit_{st.session_state.session_id}.jsonl'
+        from utils.db_helpers import load_audit_logs
+        audit_logs = load_audit_logs(st.session_state.session_id, limit=1000)
         
-        if os.path.exists(audit_file):
-            with open(audit_file, 'r') as f:
-                audit_logs = [json.loads(line) for line in f]
-            
+        if audit_logs:
             st.write(f"**Total Log Entries:** {len(audit_logs)}")
             
             filter_action = st.selectbox(
                 "Filter by Action",
-                ["All", "data_collection", "automated_coding_ollama", "export"]
+                ["All", "data_collection", "automated_coding_ollama", "export", "job_completed"]
             )
             
             if filter_action != "All":
@@ -201,7 +199,7 @@ def render():
             else:
                 filtered_logs = audit_logs
             
-            for log in filtered_logs[-20:]:
+            for log in filtered_logs[:20]:
                 with st.expander(f"{log.get('timestamp', 'N/A')} - {log.get('action', 'Unknown').upper()}"):
                     st.json(log)
             
@@ -316,9 +314,6 @@ def render():
         if st.button("🗑️ Clear All Session Data", type="secondary"):
             st.session_state.collected_data = []
             st.session_state.coded_data = []
-        if st.button("🗑️ Clear All Session Data", type="secondary"):
-            st.session_state.collected_data = []
-            st.session_state.coded_data = []
             from modules.codebook import CodebookManager
             st.session_state.codebook_manager = CodebookManager()
             st.success("✅ All session data cleared")
@@ -351,13 +346,9 @@ def prepare_dataframe(data, flatten_nested=True, include_metadata=True):
 
 def log_export_action(export_type, export_format):
     log_entry = {
-        'timestamp': datetime.now().isoformat(),
-        'action': 'export',
         'export_type': export_type,
-        'export_format': export_format,
-        'session_id': st.session_state.session_id
+        'export_format': export_format
     }
     
-    os.makedirs('logs', exist_ok=True)
-    with open(f'logs/audit_{st.session_state.session_id}.jsonl', 'a') as f:
-        f.write(json.dumps(log_entry) + '\n')
+    from utils.db_helpers import log_action
+    log_action('export', session_id=st.session_state.session_id, details=log_entry)

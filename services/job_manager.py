@@ -72,6 +72,7 @@ class JobManager:
                         cls._jobs[job_id].status = JobStatus.COMPLETED
                         cls._jobs[job_id].completed_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                         update_scrape_run(job_id=job_id, status='COMPLETED', items_collected=item.stats.total_collected)
+                        log_action(action='job_completed', session_id=params.session_id, details={'job_id': job_id, 'items_collected': item.stats.total_collected})
                         
             except Exception as e:
                 cls._jobs[job_id].status = JobStatus.FAILED
