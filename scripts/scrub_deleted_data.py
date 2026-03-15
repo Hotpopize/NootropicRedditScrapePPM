@@ -8,7 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 from services.reddit_service import RedditService
-from utils.db_helpers import get_items_for_compliance_check, delete_collected_data_by_ids, log_action
+from utils.db_helpers import get_all_collected_reddit_ids, delete_collected_data_by_ids, log_action
 from core.schemas import RedditCredentials
 
 # Setup basic logging
@@ -51,24 +51,16 @@ def main():
         sys.exit(1)
 
     logger.info("Fetching items from database for compliance check...")
-    stored_items = get_items_for_compliance_check()
+    fullnames = get_all_collected_reddit_ids()
     
-    if not stored_items:
+    if not fullnames:
         logger.info("No items found in the database. Nothing to scrub.")
         sys.exit(0)
 
-    logger.info(f"Found {len(stored_items)} items to check.")
+    logger.info(f"Found {len(fullnames)} items to check.")
 
     # Create fullname mapping
-    fullname_to_raw_id = {}
-    fullnames = []
-    for item in stored_items:
-        raw_id = item['id']
-        # Map submission -> t3_, comment -> t1_
-        prefix = "t3_" if item['type'] == 'submission' else "t1_"
-        fullname = f"{prefix}{raw_id}"
-        fullname_to_raw_id[fullname] = raw_id
-        fullnames.append(fullname)
+    fullname_to_raw_id = {fn: fn[3:] for fn in fullnames}
 
     total_checked = 0
     total_deleted = 0

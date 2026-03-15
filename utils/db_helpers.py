@@ -116,17 +116,11 @@ def load_collected_data(session_id=None, subreddit=None, limit=None):
     finally:
         db.close()
 
-def get_items_for_compliance_check():
+def get_all_collected_reddit_ids():
     db = get_db_session()
     try:
-        results = db.query(CollectedData).all()
-        return [
-            {
-                'id': r.reddit_id,
-                'type': r.type
-            }
-            for r in results
-        ]
+        results = db.query(CollectedData).filter_by(type='submission').all()
+        return ['t3_' + r.reddit_id for r in results]
     finally:
         db.close()
 
