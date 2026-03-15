@@ -1,3 +1,23 @@
+"""
+services/reddit_service.py
+==========================
+Authenticated Reddit data collection via PRAW.
+
+Collects posts and comments using Reddit's official API. Implements the
+collect_data() generator interface so JobManager can run it in a background
+thread.
+
+Exports
+-------
+- RedditService: Main collection service class.
+- RateLimiter: Token bucket rate limiter, also used by RedditJSONService.
+- reddit_retry: Tenacity decorator for PRAW network errors.
+- detect_content_status: Helper for identifying removed/deleted content.
+- detect_language: Helper for identifying non-English text.
+- get_ppm_tags: Helper for matching text against the PPM codebook.
+- generate_collection_hash: Utility for hashing collection parameters.
+"""
+
 import praw
 import prawcore
 from datetime import datetime
@@ -47,7 +67,7 @@ class RateLimiter:
         if self.request_count >= self.requests_per_minute:
             sleep_time = 60 - (now - self.window_start)
             if sleep_time > 0:
-                logger.info(f"Rate limit: sleeping {sleep_time:.1f}s")
+                logger.info("Rate limit: sleeping %.1fs", sleep_time)
                 time.sleep(sleep_time)
             self.request_count = 0
             self.window_start = time.time()
@@ -109,6 +129,7 @@ def get_ppm_tags(text):
                 break
 
     return list(tags)
+
 def detect_content_status(text, author):
     if text in ['[removed]', '[deleted]']:
         return 'removed'
@@ -157,7 +178,7 @@ class RedditService:
     def __init__(self, credentials: RedditCredentials):
         final_user_agent = credentials.user_agent
         if "AcademicResearch" not in final_user_agent and len(final_user_agent) < 10:
-            final_user_agent = f"AcademicResearch:NootropicRedditScrapePPM:v1.0 (by /u/unknown)"
+            final_user_agent = "AcademicResearch:NootropicRedditScrapePPM:v1.0 (by /u/unknown)"
 
         self.reddit = praw.Reddit(
             client_id=credentials.client_id,
@@ -193,8 +214,12 @@ class RedditService:
             return list(subreddit.new(limit=limit))
         elif method == "top":
             return list(subreddit.top(time_filter=time_filter, limit=limit))
-        elif method == "search" and query:
-            return list(subreddit.search(query, limit=limit))
+        elif method == "search":
+            if query and query.strip():
+                return list(subreddit.search(query, limit=limit))
+            else:
+                logger.warning("Search filter requested but empty query provided for r/%s — falling back to 'hot'.", subreddit.display_name)
+                return list(subreddit.hot(limit=limit))
         return list(subreddit.hot(limit=limit))
 
     def verify_credentials(self) -> bool:
@@ -202,7 +227,14 @@ class RedditService:
             self.reddit.read_only = True
             _ = self.reddit.user.me() if not self.reddit.read_only else self.reddit.random_subreddit()
             return True
-        except Exception:
+        except prawcore.exceptions.OAuthException as e:
+            logger.error("Reddit authentication failed (OAuthException): %s", e)
+            return False
+        except prawcore.exceptions.ResponseException as e:
+            logger.error("Reddit authentication failed (ResponseException): %s", e)
+            return False
+        except Exception as e:
+            logger.error("Reddit authentication encountered an unexpected error: %s", e)
             return False
 
     def collect_data(self, params: CollectionParams) -> Generator[Union[CollectionProgress, CollectionResult], None, None]:
@@ -217,11 +249,12 @@ class RedditService:
         stats = CollectionStats()
         rate_limit_events = []
         total_subreddits = len(params.subreddits)
+        safe_total_subreddits = max(total_subreddits, 1)
 
         for idx, subreddit_name in enumerate(params.subreddits):
             yield CollectionProgress(
                 current_subreddit=subreddit_name,
-                progress_percentage=idx / total_subreddits,
+                progress_percentage=idx / safe_total_subreddits,
                 status_message=f"Processing r/{subreddit_name}...",
                 rate_stats=self.rate_limiter.get_stats()
             )
@@ -291,6 +324,7 @@ class RedditService:
                         'num_comments': post.num_comments,
                         'url': post.url,
                         'permalink': f"https://reddit.com{post.permalink}",
+                        'data_source': 'praw',
                         'collected_at': datetime.utcnow().isoformat(),
                         'metadata': {
                             'nsfw': post_nsfw,
@@ -309,6 +343,7 @@ class RedditService:
                             'stickied': getattr(post, 'stickied', False),
                             'locked': getattr(post, 'locked', False),
                             'collection_hash': collection_hash,
+                            'data_source': 'praw',
                             'flair_text': getattr(post, 'link_flair_text', None)
                         }
                     }
@@ -340,6 +375,9 @@ class RedditService:
                                     'score': comment.score,
                                     'created_utc': comment.created_utc,
                                     'permalink': f"https://reddit.com{comment.permalink}",
+                                    'url': None,
+                                    'num_comments': None,
+                                    'data_source': 'praw',
                                     'collected_at': datetime.utcnow().isoformat(),
                                     'metadata': {
                                         'nsfw': post_nsfw,
@@ -351,6 +389,7 @@ class RedditService:
                                         'depth': getattr(comment, 'depth', 0),
                                         'stickied': getattr(comment, 'stickied', False),
                                         'collection_hash': collection_hash,
+                                        'data_source': 'praw',
                                         'parent_id': comment.parent_id
                                     }
                                 }
@@ -361,7 +400,7 @@ class RedditService:
                                     saved = save_collected_data(collected_posts, params.session_id)
                                     total_saved_count += saved
                                     collected_posts.clear()
-                                    if hasattr(params, 'job_id') and params.job_id:
+                                    if params.job_id:
                                         update_scrape_run(params.job_id, items_collected=total_saved_count)
 
                         except Exception as comment_error:
@@ -377,12 +416,12 @@ class RedditService:
                         saved = save_collected_data(collected_posts, params.session_id)
                         total_saved_count += saved
                         collected_posts.clear()
-                        if hasattr(params, 'job_id') and params.job_id:
+                        if params.job_id:
                             update_scrape_run(params.job_id, items_collected=total_saved_count)
 
                     yield CollectionProgress(
                         current_subreddit=subreddit_name,
-                        progress_percentage=idx / total_subreddits,
+                        progress_percentage=idx / safe_total_subreddits,
                         status_message=f"Processing post from r/{subreddit_name}...",
                         rate_stats=self.rate_limiter.get_stats()
                     )
@@ -394,24 +433,36 @@ class RedditService:
                     'error': str(e),
                     'timestamp': datetime.utcnow().isoformat()
                 })
-                logger.warning(f"Hard rate limit on r/{subreddit_name}, waiting 60s")
+                logger.warning("Hard rate limit on r/%s, waiting 60s", subreddit_name)
                 time.sleep(60)
                 continue
                 
-            except prawcore.exceptions.Forbidden:
-                logger.info(f"r/{subreddit_name} is private/banned, skipping")
+            except prawcore.exceptions.Forbidden as e:
+                rate_limit_events.append({
+                    'type': 'forbidden_error',
+                    'subreddit': subreddit_name,
+                    'error': str(e),
+                    'timestamp': datetime.utcnow().isoformat()
+                })
+                logger.info("r/%s is private/banned, skipping", subreddit_name)
                 continue
                 
-            except prawcore.exceptions.NotFound:
-                logger.info(f"r/{subreddit_name} not found, skipping")
+            except prawcore.exceptions.NotFound as e:
+                rate_limit_events.append({
+                    'type': 'not_found_error',
+                    'subreddit': subreddit_name,
+                    'error': str(e),
+                    'timestamp': datetime.utcnow().isoformat()
+                })
+                logger.info("r/%s not found, skipping", subreddit_name)
                 continue
                 
             except Exception as e:
-                logger.error(f"Unexpected error on r/{subreddit_name}: {e}")
+                logger.error("Unexpected error on r/%s: %s", subreddit_name, e)
                 error_msg = str(e)
                 yield CollectionProgress(
                     current_subreddit=subreddit_name,
-                    progress_percentage=idx / total_subreddits,
+                    progress_percentage=idx / safe_total_subreddits,
                     status_message=f"Error processing r/{subreddit_name}: {error_msg}",
                     rate_stats=self.rate_limiter.get_stats()
                 )
@@ -421,7 +472,7 @@ class RedditService:
             saved = save_collected_data(collected_posts, params.session_id)
             total_saved_count += saved
             collected_posts.clear()
-            if hasattr(params, 'job_id') and params.job_id:
+            if params.job_id:
                 update_scrape_run(params.job_id, items_collected=total_saved_count)
 
         stats.total_collected = total_saved_count
