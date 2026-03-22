@@ -110,6 +110,8 @@ class CodedData(Base):
     coding_approach = Column(String)
     session_id      = Column(String, index=True)
     rationale       = Column(Text, nullable=True)
+    raw_prompt      = Column(Text, nullable=True)
+    raw_response    = Column(Text, nullable=True)
     extra_metadata  = Column(JSON, nullable=True)
 
 
@@ -263,6 +265,20 @@ def init_db():
                 ))
                 conn.commit()
             logger.info("Migration complete: data_source column added")
+
+    if 'coded_data' in existing_tables:
+        cols = [c["name"] for c in inspector.get_columns("coded_data")]
+        with engine.connect() as conn:
+            migration_needed = False
+            if "raw_prompt" not in cols:
+                conn.execute(text("ALTER TABLE coded_data ADD COLUMN raw_prompt TEXT"))
+                migration_needed = True
+            if "raw_response" not in cols:
+                conn.execute(text("ALTER TABLE coded_data ADD COLUMN raw_response TEXT"))
+                migration_needed = True
+            if migration_needed:
+                conn.commit()
+                logger.info("Migration complete: raw_prompt/raw_response columns added")
 
 # ---------------------------------------------------------------------------
 # Session helpers

@@ -342,6 +342,8 @@ def save_coded_data(items: list, session_id: str) -> int:
                 existing.coded_by        = item.get('coded_by')
                 existing.coding_approach = item.get('coding_approach')
                 existing.rationale       = item.get('rationale')
+                existing.raw_prompt      = item.get('raw_prompt')
+                existing.raw_response    = item.get('raw_response')
                 existing.extra_metadata  = item.get('metadata', {})
                 existing.session_id      = session_id
             else:
@@ -356,6 +358,8 @@ def save_coded_data(items: list, session_id: str) -> int:
                     coding_approach = item.get('coding_approach'),
                     session_id      = session_id,
                     rationale       = item.get('rationale'),
+                    raw_prompt      = item.get('raw_prompt'),
+                    raw_response    = item.get('raw_response'),
                     extra_metadata  = item.get('metadata', {}),
                 )
                 db.add(record)
@@ -399,6 +403,8 @@ def load_coded_data(session_id: str = None, limit: int = None) -> list:
                 'coded_by':        r.coded_by,
                 'coding_approach': r.coding_approach,
                 'rationale':       r.rationale,
+                'raw_prompt':      r.raw_prompt,
+                'raw_response':    r.raw_response,
                 'metadata':        r.extra_metadata or {},
             }
             for r in results

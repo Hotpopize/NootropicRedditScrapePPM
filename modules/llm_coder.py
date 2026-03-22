@@ -188,7 +188,9 @@ def render():
                         'coded_at': datetime.now().isoformat(),
                         'coded_by': f"Ollama-{model_selection}",
                         'coding_approach': coding_approach,
-                        'rationale': coding_data.get('rationale', 'Does not meet inclusion criteria')
+                        'rationale': coding_data.get('rationale', 'Does not meet inclusion criteria'),
+                        'raw_prompt': prompt,
+                        'raw_response': coding_result
                     }
                 else:
                     coded_item = {
@@ -201,7 +203,9 @@ def render():
                         'coded_at': datetime.now().isoformat(),
                         'coded_by': f"Ollama-{model_selection}",
                         'coding_approach': coding_approach,
-                         'rationale': coding_data.get('rationale', '')
+                         'rationale': coding_data.get('rationale', ''),
+                         'raw_prompt': prompt,
+                         'raw_response': coding_result
                     }
                 
                 coded_results.append(coded_item)
@@ -309,11 +313,11 @@ def create_coding_prompt(item, approach):
     
     base_instructions = f"""You are an expert qualitative research assistant applying the Push-Pull-Mooring (PPM) framework to analyze Reddit posts about nootropics and cognitive enhancement.
 
-TEXT SPONSOR:
+REDDIT POST:
 {text_content}
 
 YOUR TASK:
-1. Determine if the text is relevant. It is relevant if it discusses experiences with conventional cognitive enhancers (e.g., caffeine, adderall) OR natural alternatives (e.g., lions mane, ashwagandha, nootropics).
+1. Determine if the text is relevant. It is relevant only if the post describes or compares switching from conventional stimulants to natural nootropics, or vice versa — not relevant if it discusses only one category in isolation.
 2. If relevant, classify the text into ONE OR MORE of the following subcodes using EXACT ID MATCHING.
 
 --- CODEBOOK DEFINITIONS ---

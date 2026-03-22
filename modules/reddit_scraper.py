@@ -309,6 +309,11 @@ def render():
                 min_word_count_val=min_word_count_val
             )
 
+            # Bind session context — required by both RedditService and RedditJSONService
+            # for incremental DB saves and session-scoped codebook prune.
+            params.session_id = st.session_state.session_id
+            params.collection_started = datetime.utcnow().isoformat()
+
             # Start the background job
             job_id = JobManager.start_job(service, params)
             st.session_state.scraping_job_id = job_id
@@ -390,14 +395,15 @@ def render():
                 return
 
             collection_hash = final_result.collection_hash
-            collected_posts = final_result.collected_posts
+            # collected_posts is always [] — buffer cleared by incremental saves in both
+            # PRAW and JSON services. Use stats.total_collected for count; reload from DB
+            # for actual data (done below via load_collected_data).
             rate_limit_events = final_result.rate_limit_events
             collection_params = {
-                **(final_result.collected_posts[0].get('metadata', {}) if final_result.collected_posts else {}),
                 'collection_completed': final_result.collection_completed,
                 'collection_hash': collection_hash,
-                'rate_limit_events': rate_limit_events,
-                'data_source': st.session_state.get('active_data_source', 'praw')
+                'data_source': st.session_state.get('active_data_source', 'praw'),
+                'collected_at': datetime.utcnow().isoformat(),
             }
             # Save data (already done incrementally in background thread)
             saved_count = final_result.stats.total_collected
@@ -442,18 +448,22 @@ def render():
                 st.session_state.collection_runs = []
             st.session_state.collection_runs.append(collection_params)
 
-            posts_count = sum(1 for p in st.session_state.collected_data if p.get('type') == 'submission')
-            comments_count = sum(1 for p in st.session_state.collected_data if p.get('type') == 'comment')
-
-            st.success(f"Successfully collected and saved {saved_count} items ({posts_count} posts, {comments_count} comments)")
+            active_src = st.session_state.get('active_data_source', 'praw')
+            src_label = "via Reddit API (PRAW)" if active_src == 'praw' else "via JSON Endpoint"
+            st.success(f"Successfully collected and saved {saved_count} items {src_label}.")
 
             with st.expander("Collection Statistics & Replicability Info"):
                 col_a, col_b, col_c = st.columns(3)
 
+                # Derived from DB reload — reflects all sessions, not this run only.
+                # This-run total is saved_count above.
+                db_posts = sum(1 for p in st.session_state.collected_data if p.get('type') == 'submission')
+                db_comments = sum(1 for p in st.session_state.collected_data if p.get('type') == 'comment')
+
                 with col_a:
-                    st.metric("Total Items", len(st.session_state.collected_data))
-                    st.metric("Posts", posts_count)
-                    st.metric("Comments", comments_count)
+                    st.metric("This Run", saved_count)
+                    st.metric("Posts (DB total)", db_posts)
+                    st.metric("Comments (DB total)", db_comments)
 
                 with col_b:
                     st.metric("Skipped NSFW", final_result.stats.skipped_nsfw)

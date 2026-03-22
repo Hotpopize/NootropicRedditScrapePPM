@@ -717,7 +717,7 @@ Reddit was selected as the data source due to its active communities discussing 
 ## 3.3 Data Analysis
 
 ### 3.3.1 Coding Approach
-LLM-assisted thematic coding using OpenAI GPT-5 was employed to identify patterns within the PPM framework. Human oversight ensured accuracy and contextual validity.
+Local LLM-assisted thematic coding using Ollama (llama3.1 and gemma3:12b) was employed, with all processing conducted offline to preserve participant anonymity. Human oversight ensured accuracy and contextual validity.
 
 ### 3.3.2 Codebook Development
 """

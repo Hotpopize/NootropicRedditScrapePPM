@@ -284,6 +284,11 @@ class RedditService:
                 )
 
                 for post in posts:
+                    if getattr(params, 'date_after', None) and post.created_utc < params.date_after:
+                        continue
+                    if getattr(params, 'date_before', None) and post.created_utc > params.date_before:
+                        continue
+
                     post_nsfw = getattr(post, 'over_18', False)
                     if post_nsfw and not params.include_nsfw:
                         stats.skipped_nsfw += 1

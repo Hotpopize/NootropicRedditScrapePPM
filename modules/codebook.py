@@ -258,18 +258,12 @@ DEFAULT_CODES = [
         source="Keary et al. (2023); Bárd (2023); Schelle et al. (2014)"
     ),
 
-    # --- EMERGENT (11 Placeholders) ---
-    Code(id="EMRG-01", category=CodeCategory.EMERGENT, name="[TBD]", definition="[To be developed inductively during analysis]", include="[TBD]", exclude="", source="[TBD]"),
-    Code(id="EMRG-02", category=CodeCategory.EMERGENT, name="[Reserved]", definition="To be defined during analysis", include="", exclude="", source="Inductive"),
-    Code(id="EMRG-03", category=CodeCategory.EMERGENT, name="[Reserved]", definition="To be defined during analysis", include="", exclude="", source="Inductive"),
-    Code(id="EMRG-04", category=CodeCategory.EMERGENT, name="[Reserved]", definition="To be defined during analysis", include="", exclude="", source="Inductive"),
-    Code(id="EMRG-05", category=CodeCategory.EMERGENT, name="[Reserved]", definition="To be defined during analysis", include="", exclude="", source="Inductive"),
-    Code(id="EMRG-06", category=CodeCategory.EMERGENT, name="[Reserved]", definition="To be defined during analysis", include="", exclude="", source="Inductive"),
-    Code(id="EMRG-07", category=CodeCategory.EMERGENT, name="[Reserved]", definition="To be defined during analysis", include="", exclude="", source="Inductive"),
-    Code(id="EMRG-08", category=CodeCategory.EMERGENT, name="[Reserved]", definition="To be defined during analysis", include="", exclude="", source="Inductive"),
-    Code(id="EMRG-09", category=CodeCategory.EMERGENT, name="[Reserved]", definition="To be defined during analysis", include="", exclude="", source="Inductive"),
-    Code(id="EMRG-10", category=CodeCategory.EMERGENT, name="[Reserved]", definition="To be defined during analysis", include="", exclude="", source="Inductive"),
-    Code(id="EMRG-11", category=CodeCategory.EMERGENT, name="[Reserved]", definition="To be defined during analysis", include="", exclude="", source="Inductive"),
+    # --- EMERGENT (5 Placeholders) ---
+    Code(id="EMER-01", category=CodeCategory.EMERGENT, name="[TBD]", definition="[To be developed inductively during analysis]", include="[TBD]", exclude="", source="[TBD]"),
+    Code(id="EMER-02", category=CodeCategory.EMERGENT, name="[Reserved]", definition="To be defined during analysis", include="", exclude="", source="Inductive"),
+    Code(id="EMER-03", category=CodeCategory.EMERGENT, name="[Reserved]", definition="To be defined during analysis", include="", exclude="", source="Inductive"),
+    Code(id="EMER-04", category=CodeCategory.EMERGENT, name="[Reserved]", definition="To be defined during analysis", include="", exclude="", source="Inductive"),
+    Code(id="EMER-05", category=CodeCategory.EMERGENT, name="[Reserved]", definition="To be defined during analysis", include="", exclude="", source="Inductive"),
 ]
 
 
