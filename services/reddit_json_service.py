@@ -60,8 +60,10 @@ Consumers
 ---------
   modules/reddit_scraper.py — instantiates RedditJSONService and calls
     collect_data() via JobManager when no PRAW credentials are present.
-  scripts/scrub_deleted_data.py — may call verify_connection() for health
-    checks.
+  scripts/scrub_deleted_data.py — does NOT call this service directly.
+    Compliance scrubbing requires PRAW credentials; JSON endpoints have no
+    equivalent of reddit.info(fullnames=...). See that script's module
+    docstring for the documented limitation.
 """
 
 import logging
@@ -73,7 +75,7 @@ import requests
 from tenacity import (
     before_sleep_log,
     retry,
-    retry_if_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_exponential,
 )
@@ -106,6 +108,17 @@ _MAX_PAGES = 10
 # Retry decorator — mirrors reddit_retry in reddit_service.py
 # ---------------------------------------------------------------------------
 
+def _is_retryable_error(exc: BaseException) -> bool:
+    """
+    Predicate for tenacity retry: True if exc should be retried, False otherwise.
+    SSLError is excluded because retrying won't fix certificate failures.
+    """
+    if isinstance(exc, requests.exceptions.SSLError):
+        return False
+    return isinstance(
+        exc, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)
+    )
+
 def json_retry(func):
     """
     Tenacity retry decorator for TRANSIENT network failures only.
@@ -121,10 +134,7 @@ def json_retry(func):
     """
     config = RateLimitConfig()
     return retry(
-        retry       = retry_if_exception_type((
-            requests.exceptions.ConnectionError,
-            requests.exceptions.Timeout,
-        )),
+        retry       = retry_if_exception(_is_retryable_error),
         stop        = stop_after_attempt(config.max_retries),
         wait        = wait_exponential(
             multiplier = config.backoff_base,
@@ -242,37 +252,46 @@ class RedditJSONService:
         backoffs = [5, 10, 20]
         attempts = 0
 
-        while True:
-            self.rate_limiter.wait()   # always wait before each attempt
-            response = self.session.get(url, params=req_params, timeout=10)
+        # SSLError and TooManyRedirects are caught here so they can be logged
+        # before propagating.  SSLError is also excluded from the @json_retry
+        # decorator (it inherits from ConnectionError, which would otherwise be
+        # retried).  TooManyRedirects is not a subclass of ConnectionError so
+        # tenacity would not retry it regardless, but explicit handling adds
+        # a useful log message.
+        try:
+            while True:
+                self.rate_limiter.wait()   # always wait before each attempt
+                response = self.session.get(url, params=req_params, timeout=10)
 
-            if response.status_code == 429:
-                if attempts < len(backoffs):
-                    sleep_time = backoffs[attempts]
-                    logger.warning(
-                        "429 rate limit on r/%s. Sleeping %ds (attempt %d/%d).",
-                        subreddit, sleep_time, attempts + 1, len(backoffs),
-                    )
-                    time.sleep(sleep_time)
-                    attempts += 1
-                    continue
-                else:
-                    logger.error(
-                        "429 rate limit on r/%s — backoff exhausted after %d attempts.",
-                        subreddit, len(backoffs),
-                    )
-                    response.raise_for_status()   # raises HTTPError — tenacity won't retry
+                if response.status_code == 429:
+                    if attempts < len(backoffs):
+                        sleep_time = backoffs[attempts]
+                        logger.warning(
+                            "429 rate limit on r/%s. Sleeping %ds (attempt %d/%d).",
+                            subreddit, sleep_time, attempts + 1, len(backoffs),
+                        )
+                        time.sleep(sleep_time)
+                        attempts += 1
+                        continue
+                    else:
+                        logger.error(
+                            "429 rate limit on r/%s — backoff exhausted after %d attempts.",
+                            subreddit, len(backoffs),
+                        )
+                        response.raise_for_status()   # raises HTTPError — tenacity won't retry
 
-            response.raise_for_status()   # raises HTTPError for 403, 404, 5xx
-            break
+                response.raise_for_status()   # raises HTTPError for 403, 404, 5xx
+                break
 
-        # Non-retryable errors raised immediately — tenacity will not catch these.
-        # SSLError: certificate invalid or TLS handshake failed. Retrying won't help.
-        # TooManyRedirects: redirect loop (e.g. unauthenticated redirect to login page).
         except requests.exceptions.SSLError as e:
+            # Certificate invalid or TLS handshake failed.  Excluded from
+            # @json_retry so this propagates immediately without retrying.
             logger.error("r/%s: SSL error — %s. Check network/certificate.", subreddit, e)
             raise
         except requests.exceptions.TooManyRedirects as e:
+            # Redirect loop — typically unauthenticated redirect to login page.
+            # Not a subclass of ConnectionError so tenacity would not retry it
+            # anyway, but logging here makes the cause explicit.
             logger.error(
                 "r/%s: too many redirects — Reddit may be redirecting to login. "
                 "This subreddit may require authentication.", subreddit
