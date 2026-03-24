@@ -11,7 +11,10 @@ graph TD
     UI -->|Triggers| Coder[LLM Coder Module]
     UI -->|Views| Dashboard[Analytics Dashboard]
     
-    Scraper -->|Reddit API| Reddit[Reddit]
+    Scraper -->|Reddit API| PRAW[Reddit PRAW]
+    Scraper -->|JSON Fallback| JSONSvc[RedditJSONService]
+    PRAW -->|Fetches Data| Reddit[Reddit]
+    JSONSvc -->|Fetches Data| Reddit[Reddit]
     Scraper -->|Saves Raw Data| DB[(SQLite Database)]
     
     Coder -->|Fetches Data| DB

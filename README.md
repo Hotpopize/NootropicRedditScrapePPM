@@ -1,67 +1,31 @@
-# NootropicRedditScrapePPM: Caffeine to Brain Boosts: Using Online Communities to Understand the Nootropics Market.
+# Caffeine to Brain Boosts: Using Online Communities to Understand the Nootropics Market.
 
-This repository contains a specialized software tool designed for the qualitative analysis of Reddit discussions, focusing specifically on the Push-Pull-Mooring (PPM) framework within the context of cognitive supplement usage. It facilitates academic research by providing tools for systematic data collection, standardized qualitative coding, and thematic visualization.
+This repository contains a specialized software tool designed to support qualitative academic research by combining programmatic data collection with automated thematic text analysis. It facilitates the systematic collection of Reddit discussions and utilizes local Large Language Models (LLMs) to securely code qualitative data according to the Push-Pull-Mooring (PPM) framework.
 
-## 🌟 Research Justification
+By prioritizing academic rigor and data privacy, all computational analysis is executed locally without transmitting sensitive research data to external APIs. The application features a streamlined pipeline from data acquisition to codebook management, culminating in an interactive dashboard for rapid visualization of qualitative coding themes.
 
-Traditional qualitative research methodologies often face significant scalability limits when analyzing digital spaces like Reddit. This application addresses these constraints by combining programmatic data collection with automated qualitative thematic coding via locally hosted language models.
+## Setup Instructions
 
-**Key Academic Benefits:**
+Ensure you have Python 3.11+ and Ollama installed.
 
-- **Data Privacy & Security:** All computation, including language model inference, is executed locally (via Ollama). No research data is transmitted to external servers, adhering strictly to institutional review board (IRB) privacy guidelines.
-- **Methodological Transparency:** The system is designed to provide complete auditability. Researchers can trace coding decisions back to specific, defined frameworks within the codebook, facilitating robust methodology sections.
-- **Scalability of Analysis:** Automates the initial categorization of large datasets (thousands of posts) according to the PPM framework, allowing researchers to focus on higher-level thematic analysis.
-
-## 📂 System Architecture
-
-The repository is structured to separate concerns into independent components:
-
-- **`app.py`**: The primary application interface. Initializes the interactive dashboard for research configuration.
-- **`modules/`**: Data collection and processing scripts (e.g., API integration, automated qualitative coding pipelines, and visualization rendering).
-- **`core/`**: Underlying data models (Pydantic schemas) and database connection handlers.
-- **`data/`**: Local repository for SQLite databases (`research_data.db`), ensuring data privacy and localized storage.
-- **`docs/`**: Project documentation, methodology definitions, and instructional guides.
-
-### 🔌 Collection Modes
-The system supports two parallel data collection modes:
-1. **JSON Endpoint Fallback (Default)**: Collects data passively via Reddit's `.json` endpoints. This mode is entirely credential-free and requires no API setup, making it ideal for immediate usage or environments with strict egress limits.
-2. **PRAW Core Collection**: Requires Reddit API credentials for rate-limit managed, intensive scrapes. Configure credentials inside `.env` if this mode is required.
-
-## 🚀 Installation & Initialization
-
-You will need **Python** (version 3.11 or higher) and **Ollama** installed on your local environment to run the analysis engine.
-
-### Setup Instructions
-
-1. **Clone the Repository:**
-
+1. **Clone the repository:**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/Hotpopize/NootropicRedditScrapePPM.git
    cd NootropicRedditScrapePPM
    ```
 
-2. **Initialize Virtual Environment:**
-
+2. **Install dependencies:**
    ```bash
-   python -m venv .venv
-   .venv\Scripts\activate  # Windows
-   # source .venv/bin/activate  # macOS/Linux
+   pip install -e .
    ```
 
-3. **Install Dependencies:**
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Launch the Interface:**
-
+3. **Launch the application:**
    ```bash
    streamlit run app.py
    ```
 
-For detailed protocols regarding data collection paradigms, model selection, and dataset exportation, please consult the [**User Guide**](docs/user_guide.md).
+## Configuration
 
-## 📄 Licensing & Academic Usage
+**Reddit API credentials are entirely optional.** By default, the tool automatically utilizes a credential-free JSON endpoint mode to passively fetch data without requiring any configuration.
 
-See [LICENSE](LICENSE) file for distribution details. Please reference the methodology documentation if utilizing this tool in published work.
+If you intend to perform rate-managed, high-volume data collection, you may configure Reddit Developer credentials using `.env.example` as a template.

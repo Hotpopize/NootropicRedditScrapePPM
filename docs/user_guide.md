@@ -69,7 +69,7 @@ This module is where you gather raw data from Reddit.
 
 - **Search Terms:** Enter the specific keywords or topics you are researching (e.g., "Nootropics", "Lion's Mane").
 - **Subreddits:** Specify which Reddit communities to search within (e.g., "Nootropics").
-- **Run Collection:** Click the button to start fetching posts and comments. The tool will save this raw data to the local database securely.
+- **Run Collection:** Click the button to start fetching posts and comments. The tool will save this raw data to the local database securely. If you do not have Reddit API credentials, the tool will automatically use public JSON endpoints — no configuration needed.
 
 ### 🤖 Automated Qualitative Coding
 
