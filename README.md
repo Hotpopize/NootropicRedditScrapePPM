@@ -1,4 +1,4 @@
-# NootropicRedditScrapePPM: Qualitative Analysis System
+# NootropicRedditScrapePPM: Caffeine to Brain Boosts: Using Online Communities to Understand the Nootropics Market.
 
 This repository contains a specialized software tool designed for the qualitative analysis of Reddit discussions, focusing specifically on the Push-Pull-Mooring (PPM) framework within the context of cognitive supplement usage. It facilitates academic research by providing tools for systematic data collection, standardized qualitative coding, and thematic visualization.
 
@@ -21,6 +21,11 @@ The repository is structured to separate concerns into independent components:
 - **`core/`**: Underlying data models (Pydantic schemas) and database connection handlers.
 - **`data/`**: Local repository for SQLite databases (`research_data.db`), ensuring data privacy and localized storage.
 - **`docs/`**: Project documentation, methodology definitions, and instructional guides.
+
+### 🔌 Collection Modes
+The system supports two parallel data collection modes:
+1. **JSON Endpoint Fallback (Default)**: Collects data passively via Reddit's `.json` endpoints. This mode is entirely credential-free and requires no API setup, making it ideal for immediate usage or environments with strict egress limits.
+2. **PRAW Core Collection**: Requires Reddit API credentials for rate-limit managed, intensive scrapes. Configure credentials inside `.env` if this mode is required.
 
 ## 🚀 Installation & Initialization
 

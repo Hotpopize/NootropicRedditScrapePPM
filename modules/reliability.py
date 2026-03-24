@@ -657,7 +657,7 @@ def calculate_reliability(coder1_df, coder2_df):
                     [1 if c == category else 0 for c in coder1_categories],
                     [1 if c == category else 0 for c in coder2_categories]
                 )
-            except:
+            except Exception as e:
                 cat_kappa = 0.0
             
             category_agreement[category] = {

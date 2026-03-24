@@ -21,7 +21,7 @@ def get_available_models():
             return [model['name'] for model in data.get('models', [])]
         return []
     except Exception as e:
-        logging.error(f"Error fetching models: {e}")
+        logging.error("Error fetching models: %s", e)
         return []
 
 def generate_completion(model, prompt, system_prompt=None):
@@ -31,7 +31,6 @@ def generate_completion(model, prompt, system_prompt=None):
     """
     url = f"{OLLAMA_BASE_URL}/api/generate"
     
-    full_prompt = prompt
     if system_prompt:
         # Simple concatenation for raw completion models, or use specific chat formats if needed
         # For simplicity in MVP, we keep it as standard completion or rely on model's instruction template handling

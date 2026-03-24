@@ -20,6 +20,7 @@ This document provides a hierarchical map of the `NootropicRedditScrapePPM` code
 
 | Module | Description |
 | :--- | :--- |
+| `reddit_json_service.py` (in `services/`) | **Collection Fallback**. Fetches public Reddit data via `.json` endpoints when PRAW fails. |
 | `reddit_scraper.py` | **Collection**. Fetches posts/comments using `praw`. Handles validation and deduplication. |
 | `llm_coder.py` | **AI Coding**. Integrates with Ollama for thematic analysis. Manages prompt engineering. |
 | `dashboard.py` | **Visualization**. Renders charts and statistics using Streamlit primitives. |

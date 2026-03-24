@@ -67,6 +67,7 @@ Consumers
 """
 
 import logging
+import re
 import time
 from datetime import datetime
 from typing import Generator, Union
@@ -343,6 +344,11 @@ class RedditJSONService:
           - Total posts collected >= max_posts
           - Page count reaches _MAX_PAGES
         """
+        # Guard: validate subreddit string format
+        if not re.match(r'^[A-Za-z0-9_]{2,21}$', subreddit):
+            logger.warning("Invalid subreddit name '%s' — skipping.", subreddit)
+            return []
+
         # Guard: zero or negative limit returns immediately
         if max_posts <= 0:
             logger.warning("fetch_posts called with max_posts=%d — returning empty.", max_posts)

@@ -35,8 +35,10 @@
 
 ### 🐛 Identified Pre-existing Bugs (Backlog)
 
-- [ ] **B3 / Audit Log Disconnect**: Audit trail UI (`modules/data_manager.py`) reads from file, but data action logs are written to DB. Need to rewrite audit tab to query AuditLog table.
-- [ ] **B4 / Duplicate Button**: Duplicate "Clear All Session Data" button in `modules/data_manager.py` (latent crash).
-- [ ] **B5 / Schema Gap**: `params.job_id` / `params.session_id` are not natively in `CollectionParams` schema (`services/job_manager.py`). 
-- [ ] **B6 / Audit Gap**: No `log_action` for job success explicitly captured in `services/job_manager.py`.
+- [x] **B3 / Audit Log Disconnect**: Audit trail UI (`modules/data_manager.py`) reads from file, but data action logs are written to DB. Need to rewrite audit tab to query AuditLog table.
+- [x] **B4 / Duplicate Button**: Duplicate "Clear All Session Data" button in `modules/data_manager.py` (latent crash).
+- [x] **B5 / Schema Gap**: `params.job_id` / `params.session_id` are not natively in `CollectionParams` schema (`services/job_manager.py`). 
+- [x] **B6 / Audit Gap**: No `log_action` for job success explicitly captured in `services/job_manager.py`.
+- [ ] **MOOR-F ID Format**: `generate_mock_ppm_data.py` must use canonical `MOOR-F-01` format if/when MOOR codes are added.
+- [ ] **MOOR-F Placeholders**: Maintain two placeholder slots for MOOR-F if needed.
 - [ ] **Scalability Limit**: `app.py` has a 10,000 item limit for `load_collected_data` at startup. (Not an issue for thesis, but note for future).
