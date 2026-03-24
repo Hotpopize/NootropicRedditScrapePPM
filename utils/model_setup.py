@@ -16,7 +16,8 @@ def check_ollama_running() -> bool:
     try:
         requests.get(f"{OLLAMA_API}/tags", timeout=2)
         return True
-    except:
+    except Exception as e:
+        logging.warning(f"Ollama health check failed: {e}")
         return False
 
 def get_installed_models() -> list[str]:

@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 import json
 from utils.db_helpers import load_replicability_logs, get_data_quality_report, load_citation_links, load_zotero_references
+from modules.codebook import CodeCategory
 
 def render():
     st.header("Thesis Export Templates")
@@ -138,7 +139,7 @@ The data collection process includes explicit handling of Not Safe For Work (NSF
 def generate_codebook_appendix():
     st.subheader("Appendix B: Codebook with Examples")
     
-    if not st.session_state.codebook:
+    if 'codebook_manager' not in st.session_state or not st.session_state.codebook_manager.get_all_codes():
         st.warning("No codebook available. Please create codes first.")
         return
     
@@ -146,28 +147,29 @@ def generate_codebook_appendix():
     content += "This codebook documents all codes used in the thematic analysis, organized by the Push-Pull-Mooring (PPM) framework.\n\n"
     
     category_names = {
-        'push_factors': 'Push Factors (Motivations to Leave Current State)',
-        'pull_factors': 'Pull Factors (Attractions of Natural Supplements)',
-        'mooring_factors': 'Mooring Factors (Barriers and Enablers)',
-        'emergent_themes': 'Emergent Themes (Beyond PPM Framework)'
+        CodeCategory.PUSH: 'Push Factors (Motivations to Leave Current State)',
+        CodeCategory.PULL: 'Pull Factors (Attractions of Natural Supplements)',
+        CodeCategory.MOOR_FACILITATOR: 'Mooring Facilitators (Enable Switching)',
+        CodeCategory.MOOR_INHIBITOR: 'Mooring Inhibitors (Impede Switching)',
+        CodeCategory.EMERGENT: 'Emergent Themes (Beyond PPM Framework)'
     }
     
     for category, display_name in category_names.items():
-        codes = st.session_state.codebook.get(category, [])
+        codes = st.session_state.codebook_manager.get_by_category(category)
         if codes:
             content += f"## {display_name}\n\n"
             
             for i, code in enumerate(codes, 1):
-                content += f"### {i}. {code.get('name')}\n\n"
-                content += f"**Definition**: {code.get('definition')}\n\n"
+                content += f"### {i}. {code.name}\n\n"
+                content += f"**Definition**: {code.definition}\n\n"
                 
-                if code.get('examples'):
-                    content += f"**Example(s)**: {code.get('examples')}\n\n"
+                if getattr(code, 'examples', ''):
+                    content += f"**Example(s)**: {code.examples}\n\n"
                 
-                content += f"**Frequency**: {code.get('frequency', 0)} occurrences\n\n"
+                content += f"**Frequency**: {code.frequency} occurrences\n\n"
                 content += "---\n\n"
     
-    content += f"\n**Total Codes**: {sum(len(codes) for codes in st.session_state.codebook.values())}\n"
+    content += f"\n**Total Codes**: {len(st.session_state.codebook_manager.get_all_codes())}\n"
     content += f"**Codebook Last Updated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
     
     st.markdown(content)
@@ -224,7 +226,7 @@ def generate_sample_data_appendix():
 def generate_thematic_summary_appendix():
     st.subheader("Appendix D: Thematic Analysis Summary")
     
-    if not st.session_state.coded_data or not st.session_state.codebook:
+    if not st.session_state.coded_data or 'codebook_manager' not in st.session_state:
         st.warning("Need both coded data and codebook for thematic summary.")
         return
     
@@ -722,8 +724,8 @@ Local LLM-assisted thematic coding using Ollama (llama3.1 and gemma3:12b) was em
 ### 3.3.2 Codebook Development
 """
     
-    if st.session_state.codebook:
-        total_codes = sum(len(codes) for codes in st.session_state.codebook.values())
+    if 'codebook_manager' in st.session_state and st.session_state.codebook_manager.get_all_codes():
+        total_codes = len(st.session_state.codebook_manager.get_all_codes())
         content += f"A codebook with {total_codes} codes was developed iteratively through:\n"
         content += "1. Initial deductive coding based on PPM framework\n"
         content += "2. Inductive coding for emergent themes\n"
