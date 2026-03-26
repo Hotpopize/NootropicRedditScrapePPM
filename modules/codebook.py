@@ -290,7 +290,7 @@ DEFAULT_CODES = [
         id="MOOR-I-03", category=CodeCategory.MOOR_INHIBITOR,
         name="Learning Costs",
         definition="Cognitive effort required to understand new substances",
-        include="Complexity overwhelms, research burden, indicator overload",
+        include="Complexity overwhelms, research burden, information overload",
         exclude="",
         source="Bansal et al. (2005); Cox & Piatkowski (2024)"
     ),

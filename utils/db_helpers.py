@@ -57,7 +57,9 @@ modules/codebook        — save_codebook, load_codebook
 modules/data_manager    — load_audit_logs, log_action, load_collected_data,
                           load_coded_data, get_all_sessions, delete_session_data,
                           get_session_stats, update_session_metadata
-modules/dashboard       — get_all_sessions, get_session_stats
+modules/dashboard       — get_all_sessions, update_session_metadata,
+                          delete_session_data, log_action,
+                          load_collected_data, load_coded_data
 modules/thesis_export   — load_replicability_logs, get_data_quality_report,
                           load_citation_links, load_zotero_references
 modules/topic_modeling  — log_action

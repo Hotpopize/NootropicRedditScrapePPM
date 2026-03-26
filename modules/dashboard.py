@@ -32,7 +32,14 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-from utils.db_helpers import get_all_sessions
+from utils.db_helpers import (
+    get_all_sessions,
+    update_session_metadata,
+    delete_session_data,
+    log_action,
+    load_collected_data,
+    load_coded_data,
+)
 
 # Thesis collection targets — methodology constants, not UI settings.
 # Defined here to match the 150-200 post target in Chapter 3.
@@ -101,6 +108,7 @@ def render() -> None:
     else:
         # Specific session selected — filter in Python
         sel_session_id = session_ids[selected_idx - 1]
+        sel_session = all_sessions[selected_idx - 1]
         filtered_collected = [
             item for item in st.session_state.collected_data
             if item.get('session_id') == sel_session_id
@@ -109,6 +117,90 @@ def render() -> None:
             item for item in st.session_state.coded_data
             if item.get('session_id') == sel_session_id
         ]
+
+        # --- Inline session actions ---
+        is_active = sel_session_id == current_session_id
+        has_scrape_run = sel_session.get('status') is not None
+
+        with st.expander("📋 Session Actions", expanded=False):
+
+            if has_scrape_run:
+                col_lbl, col_tst = st.columns([3, 1])
+                with col_lbl:
+                    new_label = st.text_input(
+                        "Rename",
+                        value=sel_session.get('label') or '',
+                        placeholder="e.g. Thesis run 1",
+                        key="dash_session_label",
+                    )
+                with col_tst:
+                    new_is_test = st.checkbox(
+                        "🧪 Test run",
+                        value=sel_session.get('is_test', False),
+                        key="dash_test_flag",
+                    )
+
+                label_changed = (new_label or None) != (sel_session.get('label') or None)
+                test_changed  = new_is_test != sel_session.get('is_test', False)
+
+                if label_changed or test_changed:
+                    if st.button("💾 Save", key="dash_save_meta"):
+                        update_session_metadata(
+                            session_id=sel_session_id,
+                            label=new_label if label_changed else None,
+                            is_test=new_is_test if test_changed else None,
+                        )
+                        st.success("✅ Updated.")
+                        st.rerun()
+            else:
+                st.caption("ℹ️ Rename/test-flag unavailable for imported sessions.")
+
+            # Delete
+            total_to_delete = sel_session['collected_count'] + sel_session['coded_count']
+
+            if is_active:
+                st.button(
+                    f"🗑️ Delete ({total_to_delete} items)",
+                    disabled=True,
+                    help="Cannot delete the active session.",
+                    key="dash_delete_disabled",
+                )
+            elif total_to_delete == 0:
+                st.caption("No data to delete. Audit trail preserved.")
+            else:
+                st.warning(
+                    f"Permanently delete **{sel_session['collected_count']}** collected "
+                    f"and **{sel_session['coded_count']}** coded item(s)?"
+                )
+                if st.button(
+                    f"🗑️ Delete {total_to_delete} Items",
+                    type="secondary",
+                    key="dash_delete_btn",
+                ):
+                    try:
+                        result = delete_session_data(sel_session_id)
+                        log_action(
+                            action='session_deleted',
+                            session_id=current_session_id,
+                            details={
+                                'deleted_session_id': sel_session_id,
+                                'collected_deleted':  result['collected_deleted'],
+                                'coded_deleted':      result['coded_deleted'],
+                            },
+                        )
+                        st.session_state.collected_data = load_collected_data(
+                            session_id=None, limit=10000
+                        )
+                        st.session_state.coded_data = load_coded_data(
+                            session_id=None, limit=10000
+                        )
+                        st.success(
+                            f"✅ Deleted {result['collected_deleted']} collected, "
+                            f"{result['coded_deleted']} coded."
+                        )
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Delete failed: {e}")
 
     # -----------------------------------------------------------------------
     # Top metrics row
