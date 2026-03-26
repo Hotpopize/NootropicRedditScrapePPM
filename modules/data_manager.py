@@ -8,7 +8,8 @@
 #   Export Data       — CSV / JSON / Excel download of collected, coded, or codebook data
 #   Upload Dataset    — Import an external JSON file into the DB and session_state
 #   Audit Trail       — Searchable view of all log_action records from the DB
-#   Session Management— Save/load/clear session state; restore from file
+#   Session Management— DB session browser (list/rename/delete/flag);
+#                      file-based save/load/clear (backup/portability)
 #
 # Key design decisions
 # --------------------
@@ -35,8 +36,16 @@ import pandas as pd
 import streamlit as st
 
 from modules.codebook import CodebookManager
-from utils.db_helpers import load_audit_logs, log_action, save_collected_data
-
+from utils.db_helpers import (
+    load_audit_logs,
+    log_action,
+    save_collected_data,
+    load_collected_data,
+    load_coded_data,
+    get_all_sessions,
+    delete_session_data,
+    update_session_metadata,
+)
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -286,7 +295,6 @@ def render():
                         added, skipped = _import_items_to_db(items_to_add)
 
                         # Refresh session_state from DB so UI reflects new data
-                        from utils.db_helpers import load_collected_data
                         st.session_state.collected_data = load_collected_data(
                             session_id=None, limit=10000
                         )
@@ -352,115 +360,268 @@ def render():
     with tab_session:
         st.subheader("🔄 Session Management")
 
-        session_id = st.session_state.get('session_id', 'unknown')
-        st.write(f"**Current Session ID:** `{session_id}`")
+        current_session_id = st.session_state.get('session_id', 'unknown')
+        st.caption(f"Active session: `{current_session_id}`")
 
-        st.divider()
+        # ---------------------------------------------------------------
+        # Session browser — primary interface
+        # ---------------------------------------------------------------
+        all_sessions = get_all_sessions()
 
-        # --- Save session ---
-        st.subheader("💾 Save Session State")
-        st.write("Save your current session to resume later or share with collaborators.")
-
-        if st.button("💾 Save Session to File"):
-            if 'codebook_manager' not in st.session_state:
-                st.session_state.codebook_manager = CodebookManager()
-
-            session_data = {
-                'session_id':     session_id,
-                'saved_at':       datetime.now().isoformat(),
-                'collected_data': st.session_state.collected_data,
-                'coded_data':     st.session_state.coded_data,
-                'codebook':       st.session_state.codebook_manager.to_dict(),
-            }
-
-            # Build bytes in memory — no server-side file created
-            session_bytes = json.dumps(session_data, indent=2, default=str).encode('utf-8')
-
-            st.download_button(
-                label="⬇️ Download Session File",
-                data=session_bytes,
-                file_name=f"session_{session_id}.json",
-                mime="application/json",
+        if not all_sessions:
+            st.info(
+                "No sessions found in the database. "
+                "Collect some data first, then return here to manage sessions."
             )
-            st.success("✅ Session file ready for download.")
+        else:
+            # Build display labels for the selector
+            session_options = []
+            for s in all_sessions:
+                label_part = s.get('label') or 'Unlabelled'
+                count_part = f"{s['collected_count']} posts"
+                test_badge = ' 🧪' if s.get('is_test') else ''
+                active_badge = ' ⚡ ACTIVE' if s['session_id'] == current_session_id else ''
+                display = (
+                    f"{s['session_id']} — {label_part} "
+                    f"({count_part}){test_badge}{active_badge}"
+                )
+                session_options.append(display)
 
-        st.divider()
+            selected_idx = st.selectbox(
+                "Select a session",
+                range(len(session_options)),
+                format_func=lambda i: session_options[i],
+                key="session_selector",
+            )
 
-        # --- Load session ---
-        st.subheader("📂 Load Session State")
+            selected = all_sessions[selected_idx]
+            sel_id = selected['session_id']
+            is_active = sel_id == current_session_id
+            has_scrape_run = selected.get('status') is not None
 
-        uploaded_file = st.file_uploader(
-            "Upload a saved session file",
-            type=['json'],
-            key="session_uploader",
-        )
+            # --- Stats display ---
+            col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+            with col_s1:
+                st.metric("Collected", selected['collected_count'])
+            with col_s2:
+                st.metric("Coded", selected['coded_count'])
+            with col_s3:
+                subs = ', '.join(selected.get('subreddits', [])) or '—'
+                st.metric("Subreddits", len(selected.get('subreddits', [])))
+            with col_s4:
+                status_val = selected.get('status') or '—'
+                st.metric("Status", status_val)
 
-        if uploaded_file is not None:
-            try:
-                session_data = json.load(uploaded_file)
+            # Show subreddit names, date range, data source as a caption
+            detail_parts = []
+            if selected.get('subreddits'):
+                detail_parts.append(
+                    f"**Subreddits:** {', '.join(selected['subreddits'])}"
+                )
+            if selected.get('first_collected'):
+                date_str = str(selected['first_collected'])[:10]
+                detail_parts.append(f"**Date:** {date_str}")
+            if selected.get('data_source'):
+                detail_parts.append(
+                    f"**Source:** {', '.join(selected['data_source'])}"
+                )
+            if detail_parts:
+                st.caption(' · '.join(detail_parts))
 
-                st.write(f"**Session ID:** {session_data.get('session_id', 'Unknown')}")
-                st.write(f"**Saved At:** {session_data.get('saved_at', 'Unknown')}")
-                st.write(f"**Collected Items:** {len(session_data.get('collected_data', []))}")
-                st.write(f"**Coded Items:** {len(session_data.get('coded_data', []))}")
+            st.divider()
 
-                if st.button("🔄 Load This Session", type="primary"):
-                    loaded_collected = session_data.get('collected_data', [])
-                    loaded_coded     = session_data.get('coded_data', [])
-
-                    # Persist loaded collected items to DB so they survive restarts
-                    if loaded_collected:
-                        added, skipped = _import_items_to_db(loaded_collected)
-                        st.write(f"Persisted {added} collected item(s) to DB ({skipped} already present).")
-
-                    # Refresh session_state from DB
-                    from utils.db_helpers import load_collected_data, load_coded_data
-                    st.session_state.collected_data = load_collected_data(
-                        session_id=None, limit=10000
+            # --- Rename and test-flag ---
+            if has_scrape_run:
+                col_label, col_test = st.columns([3, 1])
+                with col_label:
+                    new_label = st.text_input(
+                        "Session label",
+                        value=selected.get('label') or '',
+                        placeholder="e.g. Thesis run 1, Test run, Pilot collection",
+                        key="session_label_input",
                     )
-                    st.session_state.coded_data = loaded_coded  # coded_data stays as-is
+                with col_test:
+                    new_is_test = st.checkbox(
+                        "🧪 Test run",
+                        value=selected.get('is_test', False),
+                        key="session_test_flag",
+                    )
 
-                    # Restore codebook
-                    cb_data = session_data.get('codebook')
-                    if cb_data and 'codes' in cb_data:
-                        st.session_state.codebook_manager = CodebookManager.from_dict(cb_data)
-                    else:
-                        st.session_state.codebook_manager = CodebookManager()
+                # Detect changes
+                label_changed = (new_label or None) != (selected.get('label') or None)
+                test_changed  = new_is_test != selected.get('is_test', False)
 
-                    st.success("✅ Session loaded successfully.")
+                if label_changed or test_changed:
+                    if st.button("💾 Save Changes", type="primary"):
+                        update_session_metadata(
+                            session_id=sel_id,
+                            label=new_label if label_changed else None,
+                            is_test=new_is_test if test_changed else None,
+                        )
+                        st.success("✅ Session metadata updated.")
+                        st.rerun()
+            else:
+                st.caption(
+                    "ℹ️ Rename and test-flag are unavailable for imported sessions "
+                    "(no collection run record exists)."
+                )
+
+            # --- Delete session ---
+            st.divider()
+
+            total_to_delete = selected['collected_count'] + selected['coded_count']
+
+            if is_active:
+                st.button(
+                    f"🗑️ Delete ({total_to_delete} items)",
+                    disabled=True,
+                    help="Cannot delete the currently active session. "
+                         "Start a new session first.",
+                )
+            elif total_to_delete == 0:
+                st.caption(
+                    "This session has no collected or coded data to delete. "
+                    "The collection run record is preserved in the audit trail."
+                )
+            else:
+                st.warning(
+                    f"⚠️ This will permanently delete **{selected['collected_count']}** "
+                    f"collected item(s) and **{selected['coded_count']}** coded item(s) "
+                    f"from the database. The collection run record and audit log are preserved."
+                )
+                if st.button(
+                    f"🗑️ Permanently Delete {total_to_delete} Items",
+                    type="secondary",
+                    key="delete_session_btn",
+                ):
+                    try:
+                        result = delete_session_data(sel_id)
+                        log_action(
+                            action='session_deleted',
+                            session_id=current_session_id,
+                            details={
+                                'deleted_session_id': sel_id,
+                                'collected_deleted':  result['collected_deleted'],
+                                'coded_deleted':      result['coded_deleted'],
+                            },
+                        )
+                        # Refresh in-memory data from DB
+                        st.session_state.collected_data = load_collected_data(
+                            session_id=None, limit=10000
+                        )
+                        st.session_state.coded_data = load_coded_data(
+                            session_id=None, limit=10000
+                        )
+                        st.success(
+                            f"✅ Deleted {result['collected_deleted']} collected and "
+                            f"{result['coded_deleted']} coded item(s)."
+                        )
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Delete failed: {e}")
+
+        # ---------------------------------------------------------------
+        # File operations — secondary (backup / portability)
+        # ---------------------------------------------------------------
+        with st.expander("📁 File Operations (Save / Load / Clear)", expanded=False):
+
+            # --- Save session to file ---
+            st.write("**Save** your current session to a JSON file for backup or sharing.")
+
+            if st.button("💾 Save Session to File"):
+                if 'codebook_manager' not in st.session_state:
+                    st.session_state.codebook_manager = CodebookManager()
+
+                session_data = {
+                    'session_id':     current_session_id,
+                    'saved_at':       datetime.now().isoformat(),
+                    'collected_data': st.session_state.collected_data,
+                    'coded_data':     st.session_state.coded_data,
+                    'codebook':       st.session_state.codebook_manager.to_dict(),
+                }
+
+                session_bytes = json.dumps(session_data, indent=2, default=str).encode('utf-8')
+
+                st.download_button(
+                    label="⬇️ Download Session File",
+                    data=session_bytes,
+                    file_name=f"session_{current_session_id}.json",
+                    mime="application/json",
+                )
+                st.success("✅ Session file ready for download.")
+
+            st.divider()
+
+            # --- Load session from file ---
+            st.write("**Load** a previously saved session file.")
+
+            uploaded_file = st.file_uploader(
+                "Upload a saved session file",
+                type=['json'],
+                key="session_uploader",
+            )
+
+            if uploaded_file is not None:
+                try:
+                    session_data = json.load(uploaded_file)
+
+                    st.write(f"**Session ID:** {session_data.get('session_id', 'Unknown')}")
+                    st.write(f"**Saved At:** {session_data.get('saved_at', 'Unknown')}")
+                    st.write(f"**Collected Items:** {len(session_data.get('collected_data', []))}")
+                    st.write(f"**Coded Items:** {len(session_data.get('coded_data', []))}")
+
+                    if st.button("🔄 Load This Session", type="primary"):
+                        loaded_collected = session_data.get('collected_data', [])
+                        loaded_coded     = session_data.get('coded_data', [])
+
+                        if loaded_collected:
+                            added, skipped = _import_items_to_db(loaded_collected)
+                            st.write(f"Persisted {added} collected item(s) to DB ({skipped} already present).")
+
+                        # Refresh session_state from DB
+                        st.session_state.collected_data = load_collected_data(
+                            session_id=None, limit=10000
+                        )
+                        st.session_state.coded_data = loaded_coded
+
+                        # Restore codebook
+                        cb_data = session_data.get('codebook')
+                        if cb_data and 'codes' in cb_data:
+                            st.session_state.codebook_manager = CodebookManager.from_dict(cb_data)
+                        else:
+                            st.session_state.codebook_manager = CodebookManager()
+
+                        st.success("✅ Session loaded successfully.")
+                        st.rerun()
+
+                except Exception as e:
+                    st.error(f"❌ Error loading session: {e}")
+
+            st.divider()
+
+            # --- Clear session data from memory ---
+            st.write(
+                "**Clear** data from memory only — the database is not affected."
+            )
+
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🗑️ Clear Collected Data"):
+                    st.session_state.collected_data = []
+                    st.success("✅ Collected data cleared from session.")
+                    st.rerun()
+            with col2:
+                if st.button("🗑️ Clear Coded Data"):
+                    st.session_state.coded_data = []
+                    st.success("✅ Coded data cleared from session.")
                     st.rerun()
 
-            except Exception as e:
-                st.error(f"❌ Error loading session: {e}")
-
-        st.divider()
-
-        # --- Clear session data ---
-        st.subheader("🗑️ Clear Session Data")
-
-        st.warning(
-            "⚠️ Clearing session data removes it from memory only — "
-            "the database is not affected. Export first if you need a backup."
-        )
-
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🗑️ Clear Collected Data"):
+            if st.button("🗑️ Clear All Session Data", type="secondary"):
                 st.session_state.collected_data = []
-                st.success("✅ Collected data cleared from session.")
+                st.session_state.coded_data     = []
+                st.session_state.codebook_manager = CodebookManager()
+                st.success("✅ All session data cleared.")
                 st.rerun()
-        with col2:
-            if st.button("🗑️ Clear Coded Data"):
-                st.session_state.coded_data = []
-                st.success("✅ Coded data cleared from session.")
-                st.rerun()
-
-        if st.button("🗑️ Clear All Session Data", type="secondary"):
-            st.session_state.collected_data = []
-            st.session_state.coded_data     = []
-            st.session_state.codebook_manager = CodebookManager()
-            st.success("✅ All session data cleared.")
-            st.rerun()
 
 
 # ---------------------------------------------------------------------------

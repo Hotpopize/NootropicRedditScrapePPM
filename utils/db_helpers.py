@@ -37,6 +37,12 @@ replicability_log:
 reporting:
   get_data_quality_report() → dict
 
+session_management:
+  get_all_sessions() → List[dict]            # all distinct sessions with metadata
+  get_session_stats(session_id) → dict       # per-session stats (collected, coded, subreddits)
+  delete_session_data(session_id) → dict     # permanently delete collected+coded rows for session
+  update_session_metadata(session_id, label, is_test) → bool  # update ScrapeRun metadata
+
 zotero (inactive — future use):
   save_zotero_references, load_zotero_references, get_all_zotero_keywords
   save_citation_links, load_citation_links
@@ -48,7 +54,10 @@ modules/reddit_scraper  — save_collected_data, log_action, save_replicability_
                           get_all_zotero_keywords, load_collected_data (post-job)
 modules/llm_coder       — save_coded_data, log_action, load_codebook
 modules/codebook        — save_codebook, load_codebook
-modules/data_manager    — load_audit_logs, log_action
+modules/data_manager    — load_audit_logs, log_action, load_collected_data,
+                          load_coded_data, get_all_sessions, delete_session_data,
+                          get_session_stats, update_session_metadata
+modules/dashboard       — get_all_sessions, get_session_stats
 modules/thesis_export   — load_replicability_logs, get_data_quality_report,
                           load_citation_links, load_zotero_references
 modules/topic_modeling  — log_action
@@ -238,6 +247,7 @@ def load_collected_data(session_id: str = None,
                 'post_id':      r.post_id,
                 'data_source':  r.data_source or 'praw',
                 'collected_at': r.collected_at.isoformat() if r.collected_at else None,
+                'session_id':   r.session_id,
                 'metadata':     r.extra_metadata or {},
             }
             for r in results
@@ -405,6 +415,7 @@ def load_coded_data(session_id: str = None, limit: int = None) -> list:
                 'rationale':       r.rationale,
                 'raw_prompt':      r.raw_prompt,
                 'raw_response':    r.raw_response,
+                'session_id':      r.session_id,
                 'metadata':        r.extra_metadata or {},
             }
             for r in results
@@ -755,6 +766,308 @@ def get_data_quality_report() -> dict:
             'non_english_items': non_english_items,
             'report_generated':  datetime.utcnow().isoformat(),
         }
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# Session management — list, inspect, and delete sessions
+# ---------------------------------------------------------------------------
+
+def get_all_sessions() -> list:
+    """
+    Return all distinct sessions with metadata, newest first.
+
+    Discovers session_ids from BOTH CollectedData and ScrapeRun so that:
+      - Normal runs (both tables) are included
+      - Failed/cancelled runs (ScrapeRun only, 0 collected items) are included
+      - Imported data (CollectedData only, no ScrapeRun) is included
+
+    Rows with session_id=NULL are excluded — they predate session tracking.
+
+    For each session_id, returns a dict with the same shape as
+    get_session_stats(). See that function's docstring for field details.
+
+    Sort order: newest first (by first_collected, falling back to ScrapeRun
+    started_at for sessions with 0 collected items).
+
+    Performance: Python-level iteration, consistent with the rest of this
+    module. For the expected 20–30 sessions in a thesis project this
+    completes in <10ms on SQLite.
+
+    Called by:
+      - modules/data_manager.py (Session Management tab — session selector)
+      - modules/dashboard.py (session filter dropdown)
+    """
+    db = get_db_session()
+    try:
+        # 1. Collect all distinct session_ids from both tables
+        collected_sessions = (
+            db.query(CollectedData.session_id)
+            .filter(CollectedData.session_id.isnot(None))
+            .distinct()
+            .all()
+        )
+        scrape_sessions = (
+            db.query(ScrapeRun.session_id)
+            .filter(ScrapeRun.session_id.isnot(None))
+            .distinct()
+            .all()
+        )
+
+        all_ids = set()
+        for (sid,) in collected_sessions:
+            if sid:
+                all_ids.add(sid)
+        for (sid,) in scrape_sessions:
+            if sid:
+                all_ids.add(sid)
+
+        if not all_ids:
+            return []
+
+        # 2. Build stats for each session (single DB session for consistency)
+        results = []
+        for sid in all_ids:
+            results.append(_build_session_stats(db, sid))
+
+        # 3. Sort newest first — prefer first_collected, fall back to
+        #    scrape_run started_at for sessions with 0 collected items
+        def _sort_key(s):
+            return s.get('first_collected') or s.get('started_at') or ''
+
+        results.sort(key=_sort_key, reverse=True)
+        return results
+
+    finally:
+        db.close()
+
+
+def get_session_stats(session_id: str) -> dict:
+    """
+    Return metadata and counts for a single session.
+
+    Returns a dict with keys:
+      session_id      str   — the session timestamp ID
+      collected_count int   — number of CollectedData rows
+      coded_count     int   — number of CodedData rows
+      subreddits      list  — distinct subreddit names
+      first_collected str|None — ISO timestamp of earliest collected_at
+      last_collected  str|None — ISO timestamp of latest collected_at
+      data_sources    list  — distinct data_source values ('praw', 'json_endpoint')
+      label           str|None — human-readable label from ScrapeRun.extra_metadata
+      is_test         bool  — True if flagged as test run in ScrapeRun.extra_metadata
+      status          str|None — latest ScrapeRun status (COMPLETED/FAILED/CANCELLED/RUNNING)
+      started_at      str|None — ISO timestamp from latest ScrapeRun.started_at
+
+    If no data exists for the session_id, returns a dict with session_id
+    set and all counts at 0 / None.
+
+    Called by:
+      - modules/data_manager.py (per-session detail display)
+      - modules/dashboard.py (session filter stats)
+    """
+    db = get_db_session()
+    try:
+        return _build_session_stats(db, session_id)
+    finally:
+        db.close()
+
+
+def _build_session_stats(db, session_id: str) -> dict:
+    """
+    Internal helper — builds the stats dict for one session using an
+    already-open DB session. Shared by get_all_sessions() and
+    get_session_stats() to avoid duplicating the query logic.
+
+    NOT part of the public API — callers outside this module should use
+    get_all_sessions() or get_session_stats().
+    """
+    # --- CollectedData stats ---
+    collected_rows = (
+        db.query(CollectedData)
+        .filter_by(session_id=session_id)
+        .all()
+    )
+    collected_count = len(collected_rows)
+
+    subreddits = sorted(set(
+        r.subreddit for r in collected_rows
+        if r.subreddit
+    ))
+    data_sources = sorted(set(
+        (r.data_source or 'praw') for r in collected_rows
+    ))
+
+    timestamps = [
+        r.collected_at for r in collected_rows
+        if r.collected_at is not None
+    ]
+    first_collected = min(timestamps).isoformat() if timestamps else None
+    last_collected  = max(timestamps).isoformat() if timestamps else None
+
+    # --- CodedData count ---
+    coded_count = (
+        db.query(CodedData)
+        .filter_by(session_id=session_id)
+        .count()
+    )
+
+    # --- ScrapeRun metadata (latest run for this session) ---
+    latest_run = (
+        db.query(ScrapeRun)
+        .filter_by(session_id=session_id)
+        .order_by(ScrapeRun.started_at.desc())
+        .first()
+    )
+
+    label      = None
+    is_test    = False
+    status     = None
+    started_at = None
+
+    if latest_run:
+        meta = latest_run.extra_metadata or {}
+        label   = meta.get('session_label')
+        is_test = meta.get('is_test', False)
+        status  = latest_run.status
+        started_at = (
+            latest_run.started_at.isoformat()
+            if latest_run.started_at else None
+        )
+
+    return {
+        'session_id':      session_id,
+        'collected_count': collected_count,
+        'coded_count':     coded_count,
+        'subreddits':      subreddits,
+        'first_collected': first_collected,
+        'last_collected':  last_collected,
+        'data_sources':    data_sources,
+        'label':           label,
+        'is_test':         is_test,
+        'status':          status,
+        'started_at':      started_at,
+    }
+
+
+def delete_session_data(session_id: str) -> dict:
+    """
+    Permanently delete all CollectedData and CodedData rows for a session.
+
+    Both deletes execute in a SINGLE TRANSACTION — if either fails, both
+    roll back. This prevents orphaned CodedData rows pointing at deleted
+    CollectedData.
+
+    Scope of deletion:
+      ✓ CollectedData — raw posts/comments
+      ✓ CodedData     — LLM coding results
+      ✗ Codebook      — shared research instrument, never session-deleted
+      ✗ ScrapeRun     — audit trail, preserved for methodology transparency
+      ✗ AuditLog      — audit trail, preserved
+      ✗ ReplicabilityLog — audit trail, preserved
+
+    Returns {'collected_deleted': int, 'coded_deleted': int}.
+
+    WARNING: Destructive and unrecoverable. The caller is responsible for:
+      1. Confirming with the user before calling
+      2. Guarding against deletion of the currently active session
+      3. Calling log_action('session_deleted', ...) after this returns
+      4. Refreshing session_state.collected_data / coded_data from DB
+
+    Called by:
+      - modules/data_manager.py (Session Management tab — delete button)
+    """
+    if not session_id:
+        return {'collected_deleted': 0, 'coded_deleted': 0}
+
+    db = get_db_session()
+    try:
+        collected_deleted = (
+            db.query(CollectedData)
+            .filter_by(session_id=session_id)
+            .delete(synchronize_session=False)
+        )
+
+        coded_deleted = (
+            db.query(CodedData)
+            .filter_by(session_id=session_id)
+            .delete(synchronize_session=False)
+        )
+
+        db.commit()
+
+        logger.info(
+            "Deleted session %s: %d collected, %d coded rows removed.",
+            session_id, collected_deleted, coded_deleted,
+        )
+
+        return {
+            'collected_deleted': collected_deleted,
+            'coded_deleted':     coded_deleted,
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to delete session %s: %s", session_id, e)
+        raise e
+    finally:
+        db.close()
+
+
+def update_session_metadata(
+    session_id: str,
+    label:   str  = None,
+    is_test: bool = None,
+) -> bool:
+    """
+    Update label and/or test-flag on the latest ScrapeRun for a session.
+
+    Performs a READ-MODIFY-WRITE on ScrapeRun.extra_metadata so that
+    existing keys (e.g. keys written by job_manager) are preserved.
+    Only keys explicitly passed (not None) are updated.
+
+    Returns True if a ScrapeRun was found and updated, False if no
+    ScrapeRun exists for this session_id. The UI should disable the
+    rename/test-flag controls when this returns False.
+
+    Called by:
+      - modules/data_manager.py (Session Management tab — rename / test toggle)
+    """
+    if not session_id:
+        return False
+
+    db = get_db_session()
+    try:
+        latest_run = (
+            db.query(ScrapeRun)
+            .filter_by(session_id=session_id)
+            .order_by(ScrapeRun.started_at.desc())
+            .first()
+        )
+
+        if not latest_run:
+            return False
+
+        meta = latest_run.extra_metadata or {}
+
+        if label is not None:
+            meta['session_label'] = label
+        if is_test is not None:
+            meta['is_test'] = is_test
+
+        latest_run.extra_metadata = meta
+        db.commit()
+
+        logger.info(
+            "Updated session %s metadata: label=%r, is_test=%r",
+            session_id, label, is_test,
+        )
+        return True
+
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to update session %s metadata: %s", session_id, e)
+        raise e
     finally:
         db.close()
 

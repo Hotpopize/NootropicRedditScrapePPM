@@ -5,8 +5,10 @@
 # Purpose
 # -------
 # Provides at-a-glance visibility into data collection progress, coding
-# distribution, and session status. Reads from session_state only — no DB
-# writes, no background calls.
+# distribution, and session status. Reads from session_state by default;
+# optionally filters by session using session_id field in item dicts.
+# Queries DB once per render for the session list (get_all_sessions) —
+# fast, read-only, no writes or background calls.
 #
 # All four session_state keys accessed here (collected_data, coded_data,
 # codebook_manager, session_id) are guaranteed by app.py's startup
@@ -30,6 +32,8 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
+from utils.db_helpers import get_all_sessions
+
 # Thesis collection targets — methodology constants, not UI settings.
 # Defined here to match the 150-200 post target in Chapter 3.
 THESIS_TARGET_MIN = 150
@@ -40,8 +44,6 @@ def render() -> None:
     st.header("📊 Research Dashboard")
 
     # --- DB health warning ---
-    # db_loaded is set False by app.py if init_db() failed.
-    # Metrics will show zeros but the warning makes the cause explicit.
     if not st.session_state.get('db_loaded', True):
         st.warning(
             "⚠️ Database did not initialise correctly. "
@@ -49,10 +51,70 @@ def render() -> None:
         )
 
     # -----------------------------------------------------------------------
+    # Session filter — overlay, does not mutate session_state
+    # -----------------------------------------------------------------------
+    current_session_id = st.session_state.get('session_id', '')
+    all_sessions = get_all_sessions()
+
+    # Build filter options: "All sessions" + one entry per session
+    session_ids = []          # parallel list for index-based lookup
+    session_options = ["All sessions"]
+
+    for s in all_sessions:
+        label_part = s.get('label') or 'Unlabelled'
+        count_part = f"{s['collected_count']} posts"
+        test_badge = ' 🧪' if s.get('is_test') else ''
+        active_badge = ' ⚡ ACTIVE' if s['session_id'] == current_session_id else ''
+        display = (
+            f"{s['session_id']} — {label_part} "
+            f"({count_part}){test_badge}{active_badge}"
+        )
+        session_options.append(display)
+        session_ids.append(s['session_id'])
+
+    # Only show the filter if there are sessions to filter
+    if all_sessions:
+        selected_idx = st.selectbox(
+            "Filter by session",
+            range(len(session_options)),
+            format_func=lambda i: session_options[i],
+            key="dashboard_session_filter",
+        )
+    else:
+        selected_idx = 0  # "All sessions" — no filter
+
+    # Apply filter
+    if selected_idx == 0:
+        # "All sessions" — use everything in session_state
+        filtered_collected = st.session_state.collected_data
+        filtered_coded     = st.session_state.coded_data
+
+        # Test-run warning: if any session is flagged as test, warn
+        has_test_sessions = any(s.get('is_test') for s in all_sessions)
+        if has_test_sessions:
+            st.warning(
+                "⚠️ **Test session data included.** Some sessions are flagged as "
+                "test runs. Select a specific session above to view only "
+                "production data, or manage test flags in Data Export → "
+                "Session Management."
+            )
+    else:
+        # Specific session selected — filter in Python
+        sel_session_id = session_ids[selected_idx - 1]
+        filtered_collected = [
+            item for item in st.session_state.collected_data
+            if item.get('session_id') == sel_session_id
+        ]
+        filtered_coded = [
+            item for item in st.session_state.coded_data
+            if item.get('session_id') == sel_session_id
+        ]
+
+    # -----------------------------------------------------------------------
     # Top metrics row
     # -----------------------------------------------------------------------
-    collected_count = len(st.session_state.collected_data)
-    coded_count     = len(st.session_state.coded_data)
+    collected_count = len(filtered_collected)
+    coded_count     = len(filtered_coded)
     total_codes     = len(st.session_state.codebook_manager.get_all())
     completion_pct  = (coded_count / collected_count * 100) if collected_count else 0.0
 
@@ -121,10 +183,10 @@ def render() -> None:
     # -----------------------------------------------------------------------
     # Data Collection Summary
     # -----------------------------------------------------------------------
-    if st.session_state.collected_data:
+    if filtered_collected:
         st.subheader("📈 Collection Summary")
 
-        df = pd.DataFrame(st.session_state.collected_data)
+        df = pd.DataFrame(filtered_collected)
         st.write(f"**Total Records:** {len(df)}")
 
         col_left, col_right = st.columns(2)
@@ -145,8 +207,6 @@ def render() -> None:
                 st.bar_chart(source_counts)
 
         if 'created_utc' in df.columns:
-            # Filter out zero/null timestamps before conversion to avoid
-            # 1970-01-01 appearing as the date range minimum.
             valid_utc = df['created_utc'].dropna()
             valid_utc = valid_utc[valid_utc > 0]
             if not valid_utc.empty:
@@ -159,11 +219,11 @@ def render() -> None:
     # -----------------------------------------------------------------------
     # Coding Distribution
     # -----------------------------------------------------------------------
-    if st.session_state.coded_data:
+    if filtered_coded:
         st.divider()
         st.subheader("🎯 Coding Distribution")
 
-        coded_df = pd.DataFrame(st.session_state.coded_data)
+        coded_df = pd.DataFrame(filtered_coded)
 
         row1_left, row1_right = st.columns(2)
 
@@ -179,7 +239,6 @@ def render() -> None:
                 conf_counts = coded_df['confidence'].value_counts()
                 st.bar_chart(conf_counts)
 
-        # Per-subcode breakdown — primary analytical output for thesis Chapter 4
         if 'ppm_subcodes' in coded_df.columns:
             st.write("**Subcode Frequency (top 15)**")
             all_subcodes = []
@@ -196,7 +255,6 @@ def render() -> None:
             else:
                 st.caption("No subcodes assigned yet.")
 
-        # Emergent themes
         if 'themes' in coded_df.columns:
             all_themes = []
             for themes in coded_df['themes']:
@@ -215,7 +273,11 @@ def render() -> None:
 
     col1, col2 = st.columns(2)
     with col1:
-        st.write(f"**Session ID:** `{st.session_state.session_id}`")
+        if selected_idx == 0:
+            st.write(f"**Viewing:** All sessions ({len(all_sessions)} total)")
+        else:
+            sel_label = all_sessions[selected_idx - 1].get('label') or 'Unlabelled'
+            st.write(f"**Viewing:** {sel_label} (`{session_ids[selected_idx - 1]}`)")
     with col2:
         st.write(f"**Current Time:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 

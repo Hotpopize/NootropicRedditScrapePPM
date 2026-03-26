@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-from utils.db_helpers import save_collected_data, log_action, save_replicability_log, get_all_zotero_keywords
+from utils.db_helpers import save_collected_data, log_action, save_replicability_log, get_all_zotero_keywords, update_session_metadata
 
 # --- THESIS CONFIGURATION CONSTANTS ---
 THESIS_SUBREDDITS = [
@@ -13,250 +13,326 @@ THESIS_SUBREDDITS = [
     'Biohackers'
 ]
 
+
 def render():
     st.header("Data Collection")
 
+    # ===================================================================
+    # Section 1: Session Label + Mode Badge (always visible)
+    # ===================================================================
+
+    session_label = st.text_input(
+        "📋 Label this session",
+        value=st.session_state.get('session_label', ''),
+        placeholder="e.g. Test run, Thesis collection 1, Pilot",
+        help="Optional label stored with this collection for easy identification later.",
+        key="session_label_input",
+    )
+    st.session_state.session_label = session_label
+
+    # Resolve data source mode — needed for badge and downstream logic
     creds = st.session_state.get('reddit_credentials', {})
     has_creds = bool(creds.get('client_id') and creds.get('client_secret'))
-    pref = st.session_state.get('data_source_preference', 'Auto (recommended)')
-    active_mode = 'praw' if (pref == 'PRAW' or (pref == 'Auto (recommended)' and has_creds)) else 'json'
 
-    if active_mode == 'praw':
-        st.success("🔑 **Collection Mode: Reddit API (PRAW)** — Authenticated access active. Configure credentials below.")
+    if 'data_source_preference' not in st.session_state:
+        st.session_state.data_source_preference = "Auto (recommended)"
+
+    pref = st.session_state.data_source_preference
+    use_json = (
+        pref == "JSON Endpoint" or
+        (pref == "Auto (recommended)" and not has_creds)
+    )
+
+    # Mode badge — single-line status, not a choice widget
+    if use_json:
+        st.caption("🟢 Collecting without credentials — no setup required")
     else:
-        st.warning("🌐 **Collection Mode: JSON Endpoint** — No credentials required. Using Reddit's public endpoints. ToS-compliant for non-commercial academic use.")
+        st.caption("🔑 Collecting with Reddit API credentials")
 
-    with st.expander("Reddit API Configuration", expanded=False):
-        client_id = st.text_input("Client ID", type="password", help="Found under the app name")
-        client_secret = st.text_input("Client Secret", type="password", help="The secret key shown")
-        user_agent = st.text_input("User Agent", value="AcademicResearch:NootropicsStudy:v1.0 (by /u/YourUsername)", help="Descriptive string identifying your app")
+    # ===================================================================
+    # Section 2: Thesis summary + Start button
+    # ===================================================================
 
-        if st.button("Save API Credentials"):
-            st.session_state.reddit_credentials = {
-                'client_id': client_id,
-                'client_secret': client_secret,
-                'user_agent': user_agent
-            }
-            st.success("Credentials saved for this session")
+    # The Advanced expander below contains the thesis toggle. We read its
+    # value here via session_state so the toggle is inside Advanced but
+    # its EFFECT is visible at the top level.
+    if 'use_thesis_config' not in st.session_state:
+        st.session_state.use_thesis_config = True
 
-        if st.button("Verify Credentials"):
-            if 'reddit_credentials' not in st.session_state:
-                st.error("Save credentials first")
-            else:
-                try:
-                    from core.schemas import RedditCredentials
-                    from services.reddit_service import RedditService
+    use_thesis_config = st.session_state.use_thesis_config
 
-                    creds_data = st.session_state.reddit_credentials
-                    creds = RedditCredentials(
-                        client_id=creds_data['client_id'],
-                        client_secret=creds_data['client_secret'],
-                        user_agent=creds_data['user_agent']
+    if use_thesis_config:
+        # --- Thesis mode: all parameters hard-set ---
+        subreddits        = list(THESIS_SUBREDDITS)
+        collection_method = "Top Posts (Time Period)"
+        time_filter       = "all"
+        limit             = 50
+        search_query      = ""
+        collect_comments  = False
+        comment_limit     = 0
+        include_nsfw      = False
+        include_removed   = True
+        include_media_only = False
+        flag_non_english  = True
+        max_text_length   = 50000
+        min_word_count_val = 20
+
+        st.info(
+            "🎓 **Thesis Mode** · "
+            f"{len(THESIS_SUBREDDITS)} subreddits · "
+            "Top posts (all time) · "
+            f"{limit}/sub · "
+            f"min {min_word_count_val} words · "
+            "text only"
+        )
+
+    # If thesis mode is OFF, parameters are set inside the Advanced
+    # expander below. We define them here as None and fill them in the
+    # expander. The Start button guard checks `subreddits` after the
+    # expander has run.
+    else:
+        subreddits         = None  # set inside expander
+        collection_method  = None
+        time_filter        = None
+        limit              = None
+        search_query       = None
+        collect_comments   = None
+        comment_limit      = None
+        include_nsfw       = None
+        include_removed    = None
+        include_media_only = None
+        flag_non_english   = None
+        max_text_length    = None
+        min_word_count_val = None
+
+    # ===================================================================
+    # Section 3: Advanced Settings (collapsed by default)
+    # ===================================================================
+
+    with st.expander("⚙️ Advanced Settings", expanded=not use_thesis_config):
+
+        # --- Thesis toggle (first item) ---
+        thesis_checked = st.checkbox(
+            "🎓 Use Thesis Configuration (Methodology Standard)",
+            value=st.session_state.use_thesis_config,
+            help="Locks parameters to thesis methodology: 5 subreddits, "
+                 "Top Posts (all time), 50 per sub, min 20 words, text only.",
+            key="thesis_config_checkbox",
+        )
+        st.session_state.use_thesis_config = thesis_checked
+
+        if thesis_checked:
+            # --- Thesis mode ON: show locked summary ---
+            st.caption(
+                f"**Subreddits:** {', '.join(THESIS_SUBREDDITS)}\n\n"
+                f"**Method:** Top Posts (all time) · 50 per subreddit\n\n"
+                f"**Filters:** Min 20 words · No media-only · No NSFW · No comments"
+            )
+
+        else:
+            # --- Thesis mode OFF: show all parameter widgets ---
+            st.divider()
+            st.write("**Collection Parameters**")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                subreddits_input = st.text_area(
+                    "Target Subreddits (one per line)",
+                    value="Nootropics\nStackAdvice\nSupplements\nCognitive_Neuroscience",
+                    help="Enter subreddit names without r/ prefix",
+                    height=150,
+                )
+                subreddits = [s.strip() for s in subreddits_input.split('\n') if s.strip()]
+
+                default_query = st.session_state.get('zotero_search_query', '')
+                search_query = st.text_input(
+                    "Search Query (optional)",
+                    value=default_query if default_query else '',
+                    help="Leave empty to collect by method above, or enter keywords.",
+                )
+
+            with col2:
+                collection_method = st.selectbox(
+                    "Collection Method",
+                    ["Recent Posts (Hot)", "Recent Posts (New)",
+                     "Top Posts (Time Period)", "Search Query"],
+                )
+
+                if collection_method == "Top Posts (Time Period)":
+                    time_filter = st.selectbox(
+                        "Time Period",
+                        ["day", "week", "month", "year", "all"],
                     )
-                    service = RedditService(creds)
+                else:
+                    time_filter = "all"
 
-                    if service.verify_credentials():
-                        st.success("Credentials Verified! Connection successful.")
-                    else:
-                        st.error("Verification Failed: Could not connect to Reddit APIs. Check your client ID/secret.")
-                except Exception as e:
-                    st.error(f"Verification Error: {e}")
+                limit = st.number_input(
+                    "Posts per Subreddit",
+                    min_value=1, max_value=1000, value=100,
+                    help="Reddit API limits apply",
+                )
 
-    st.divider()
+                use_json_mode_comments = (
+                    st.session_state.data_source_preference == "JSON Endpoint" or
+                    (st.session_state.data_source_preference == "Auto (recommended)"
+                     and not has_creds)
+                )
 
-    try:
-        zotero_keywords = get_all_zotero_keywords()
-    except Exception as e:
-        st.warning(f"Could not load Zotero keywords (Database or connection issue): {e}")
-        zotero_keywords = []
-    if zotero_keywords:
-        with st.expander("📚 Zotero-Informed Search Keywords", expanded=False):
-            st.markdown("**Keywords from your Zotero literature are available to guide data collection:**")
+                collect_comments = st.checkbox(
+                    "Collect Comments",
+                    value=False,
+                    disabled=use_json_mode_comments,
+                    help="Comment collection not available in JSON mode."
+                         if use_json_mode_comments
+                         else "Collect top comments per post.",
+                )
 
-            col_a, col_b = st.columns([3, 1])
-            with col_a:
+                if collect_comments:
+                    comment_limit = st.number_input(
+                        "Max Comments per Post",
+                        min_value=1, max_value=500, value=50,
+                    )
+                else:
+                    comment_limit = 0
+
+            # --- Content Filtering ---
+            st.divider()
+            st.write("**Content Filtering**")
+
+            col3, col4 = st.columns(2)
+
+            with col3:
+                include_nsfw = st.checkbox(
+                    "Include NSFW Content", value=False,
+                    help="Include posts/subreddits marked as NSFW (18+)",
+                )
+                include_removed = st.checkbox(
+                    "Include Removed/Deleted Content", value=True,
+                    help="Include posts where content is [removed] or [deleted]",
+                )
+                include_media_only = st.checkbox(
+                    "Include Media-Only Posts", value=False,
+                    help="Include image/video posts without text content",
+                )
+
+            with col4:
+                flag_non_english = st.checkbox(
+                    "Flag Non-English Content", value=True,
+                    help="Detect and flag likely non-English posts",
+                )
+                max_text_length = st.number_input(
+                    "Max Text Length (chars)",
+                    min_value=1000, max_value=100000, value=50000,
+                    help="Truncate very long posts to this length",
+                )
+                min_word_count_val = st.number_input(
+                    "Min Word Count",
+                    min_value=0, max_value=1000, value=0,
+                    help="Filter out posts shorter than this",
+                )
+
+            # --- Zotero keywords (only when thesis mode is OFF) ---
+            try:
+                zotero_keywords = get_all_zotero_keywords()
+            except Exception:
+                zotero_keywords = []
+
+            if zotero_keywords:
+                st.divider()
+                st.write("**📚 Zotero-Informed Search Keywords**")
+
                 selected_zotero_kw = st.multiselect(
                     "Select keywords from your literature",
                     options=zotero_keywords,
                     default=st.session_state.get('selected_zotero_keywords', [])[:5],
-                    help="These keywords are extracted from your synced Zotero references"
+                    help="Keywords extracted from your synced Zotero references",
                 )
                 st.session_state.selected_zotero_keywords = selected_zotero_kw
 
-            with col_b:
-                st.metric("Available Keywords", len(zotero_keywords))
+                if selected_zotero_kw:
+                    suggested_query = ' OR '.join(selected_zotero_kw[:5])
+                    st.info(f"**Suggested search query:** `{suggested_query}`")
+                    if st.button("Use as Search Query"):
+                        st.session_state.zotero_search_query = suggested_query
 
-            if selected_zotero_kw:
-                suggested_query = ' OR '.join(selected_zotero_kw[:5])
-                st.info(f"**Suggested search query:** `{suggested_query}`")
+        # --- Data Source (always visible in Advanced, for both modes) ---
+        st.divider()
+        st.write("**Data Source**")
 
-                if st.button("Use as Search Query"):
-                    st.session_state.zotero_search_query = suggested_query
-
-    st.divider()
-
-    st.subheader("Data Collection Parameters")
-
-    # --- THESIS CONFIGURATION TOGGLE ---
-    use_thesis_config = st.checkbox(
-        "🎓 Use Thesis Configuration (Methodology Standard)",
-        value=False,
-        help="Enabling this pre-fills target subreddits and recommended settings per the thesis methodology."
-    )
-
-    if use_thesis_config:
-        st.info("✅ **Thesis Mode Active**: Targeting 5 Core Subreddits | Min Word Count: 20 | Auto-Tagging Enabled")
-        subreddits_default = "\n".join(THESIS_SUBREDDITS)
-        min_word_count_default = 20
-    else:
-        subreddits_default = "Nootropics\nStackAdvice\nSupplements\nCognitive_Neuroscience"
-        min_word_count_default = 0
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        subreddits_input = st.text_area(
-            "Target Subreddits (one per line)",
-            value=subreddits_default,
-            help="Enter subreddit names without r/ prefix",
-            height=150
+        data_source = st.radio(
+            "Collection backend",
+            ["Auto (recommended)", "PRAW", "JSON Endpoint"],
+            index=["Auto (recommended)", "PRAW", "JSON Endpoint"].index(
+                st.session_state.data_source_preference
+            ),
+            horizontal=True,
+            key="data_source_radio",
         )
-        subreddits = [s.strip() for s in subreddits_input.split('\n') if s.strip()]
+        st.session_state.data_source_preference = data_source
 
-        default_query = st.session_state.get('zotero_search_query', '')
-        search_query = st.text_input(
-            "Search Query (optional)",
-            value=default_query if default_query else '(adderall OR ritalin OR caffeine OR modafinil) AND (lions mane OR ashwagandha OR bacopa OR noopept)',
-            help="Leave empty to collect recent posts, or enter keywords. Use Zotero keywords above for literature-informed search."
-        )
-    with col2:
-        collection_method = st.selectbox(
-            "Collection Method",
-            ["Recent Posts (Hot)", "Recent Posts (New)", "Top Posts (Time Period)", "Search Query"]
-        )
-
-        if collection_method == "Top Posts (Time Period)":
-            time_filter = st.selectbox(
-                "Time Period",
-                ["day", "week", "month", "year", "all"]
+        # --- Reddit API Credentials ---
+        with st.expander("🔑 Reddit API Credentials (optional)", expanded=False):
+            client_id = st.text_input(
+                "Client ID", type="password",
+                help="Found under the app name",
             )
-        else:
-            time_filter = "all"
-
-        limit = st.number_input(
-            "Number of Posts per Subreddit",
-            min_value=1,
-            max_value=1000,
-            value=100,
-            help="Reddit API limits apply"
-        )
-
-        pref_src = st.session_state.get('data_source_preference', 'Auto (recommended)')
-        has_creds = bool(st.session_state.get('reddit_credentials', {}).get('client_id'))
-        use_json_mode = (pref_src == "JSON Endpoint" or (pref_src == "Auto (recommended)" and not has_creds))
-        
-        collect_comments = st.checkbox(
-            "Collect Comments",
-            value=True,
-            disabled=use_json_mode,
-            help="Comment collection not available in JSON mode." if use_json_mode else "Collect top comments per post."
-        )
-
-        if collect_comments:
-            comment_limit = st.number_input(
-                "Max Comments per Post",
-                min_value=1,
-                max_value=500,
-                value=50
+            client_secret = st.text_input(
+                "Client Secret", type="password",
+                help="The secret key shown",
             )
-        else:
-            comment_limit = 0
+            user_agent = st.text_input(
+                "User Agent",
+                value="AcademicResearch:NootropicsStudy:v1.0 (by /u/YourUsername)",
+                help="Descriptive string identifying your app",
+            )
 
-    st.divider()
+            if st.button("Save API Credentials"):
+                st.session_state.reddit_credentials = {
+                    'client_id': client_id,
+                    'client_secret': client_secret,
+                    'user_agent': user_agent,
+                }
+                st.success("Credentials saved for this session")
 
-    st.subheader("Content Filtering & Edge Cases")
+            if st.button("Verify Credentials"):
+                if 'reddit_credentials' not in st.session_state:
+                    st.error("Save credentials first")
+                else:
+                    try:
+                        from core.schemas import RedditCredentials
+                        from services.reddit_service import RedditService
 
-    col3, col4 = st.columns(2)
+                        creds_data = st.session_state.reddit_credentials
+                        creds_obj = RedditCredentials(
+                            client_id=creds_data['client_id'],
+                            client_secret=creds_data['client_secret'],
+                            user_agent=creds_data['user_agent'],
+                        )
+                        service = RedditService(creds_obj)
 
-    with col3:
-        include_nsfw = st.checkbox(
-            "Include NSFW Content",
-            value=False,
-            help="Include posts/subreddits marked as Not Safe For Work (18+)"
-        )
+                        if service.verify_credentials():
+                            st.success("Credentials Verified! Connection successful.")
+                        else:
+                            st.error("Verification Failed: Check your client ID/secret.")
+                    except Exception as e:
+                        st.error(f"Verification Error: {e}")
 
-        include_removed = st.checkbox(
-            "Include Removed/Deleted Content",
-            value=True,
-            help="Include posts where content is [removed] or [deleted] - useful for tracking deletions"
-        )
+    # ===================================================================
+    # Start button (outside expander, always visible)
+    # ===================================================================
 
-        include_media_only = st.checkbox(
-            "Include Media-Only Posts",
-            value=True,
-            help="Include image/video posts without text content"
-        )
-
-    with col4:
-        flag_non_english = st.checkbox(
-            "Flag Non-English Content",
-            value=True,
-            help="Automatically detect and flag likely non-English posts"
-        )
-
-        max_text_length = st.number_input(
-            "Max Text Length (chars)",
-            min_value=1000,
-            max_value=100000,
-            value=50000,
-            help="Truncate very long posts to this length"
-        )
-
-        min_word_count_val = st.number_input(
-            "Min Word Count (Posts)",
-            min_value=0,
-            max_value=1000,
-            value=min_word_count_default,
-            help="Filter out posts shorter than this (Thesis Standard: >20 words)"
-        )
-
-    st.divider()
-
-    st.subheader("Data Source Selection")
-    
-    if 'data_source_preference' not in st.session_state:
-        st.session_state.data_source_preference = "Auto (recommended)"
-
-    data_source = st.radio(
-        "Data Source",
-        ["Auto (recommended)", "PRAW", "JSON Endpoint"],
-        index=["Auto (recommended)", "PRAW", "JSON Endpoint"].index(
-            st.session_state.data_source_preference
-        ),
-        horizontal=True,
-        key="data_source_radio"
-    )
-    st.session_state.data_source_preference = data_source
-    
-    use_json = (
-        st.session_state.data_source_preference == "JSON Endpoint" or
-        (st.session_state.data_source_preference == "Auto (recommended)" and
-         not st.session_state.get('reddit_credentials', {}).get('client_id'))
-    )
-
-    if use_json:
-        st.warning(
-            "**JSON Mode Active** — No API credentials detected. "
-            "Data will be collected from Reddit's public JSON endpoints. "
-            "This is ToS-compliant for non-commercial academic use. "
-            "Collection method will be recorded in the audit trail.",
-            icon="⚠️"
-        )
-        
     if 'scraping_job_id' not in st.session_state:
         st.session_state.scraping_job_id = None
 
-    if st.button("Start Data Collection", type="primary", disabled=st.session_state.scraping_job_id is not None):
+    if not subreddits:
+        st.warning("⚠️ No subreddits specified. Add at least one subreddit above before collecting data.")
+
+    if st.button(
+        "▶ Start Data Collection",
+        type="primary",
+        disabled=(st.session_state.scraping_job_id is not None or not subreddits),
+    ):
         try:
             from core.schemas import RedditCredentials, CollectionParams
             from services.job_manager import JobManager
@@ -439,6 +515,15 @@ def render():
                 session_id=st.session_state.session_id,
                 details={'collection_hash': collection_hash, 'saved_count': saved_count, 'data_source': st.session_state.get('active_data_source', 'praw')}
             )
+
+            # Persist session label to ScrapeRun.extra_metadata so it appears
+            # in the Session Management tab and dashboard filter.
+            _label = st.session_state.get('session_label', '')
+            if _label:
+                update_session_metadata(
+                    session_id=st.session_state.session_id,
+                    label=_label,
+                )
 
             from utils.db_helpers import load_collected_data
             st.session_state.collected_data = load_collected_data(session_id=None, limit=10000)

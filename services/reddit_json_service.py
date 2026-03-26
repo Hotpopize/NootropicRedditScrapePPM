@@ -570,7 +570,15 @@ class RedditJSONService:
                         logger.warning("collect_data: item with no id encountered — skipping.")
                         continue
 
-                    subreddit_nsfw = raw.get('over18', False)
+                    # NSFW flags — two separate concepts:
+                    # - post-level: 'over_18' (bool) — present on post objects. WORKS.
+                    # - subreddit-level: 'subreddit_over18' is NOT present on post
+                    #   listing objects. The subreddit-level flag 'over18' lives on the
+                    #   subreddit object (/r/{sub}/about.json), which requires a
+                    #   separate API call. For thesis purposes this is acceptable:
+                    #   none of the 5 target subreddits are NSFW. The value stored in
+                    #   metadata['subreddit_nsfw'] will always be False from this path.
+                    subreddit_nsfw = raw.get('subreddit_over18', False)
                     post_nsfw      = raw.get('over_18', False)
 
                     if post_nsfw and not params.include_nsfw:

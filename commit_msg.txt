@@ -1,0 +1,16 @@
+﻿Session management, UX simplification, JSON verification (Tasks 0-6)
+
+- Fix subreddit NSFW field key (subreddit_over18) in JSON service
+- Make thesis configuration the default (value=True)
+- Add session management DB helpers: get_all_sessions, get_session_stats,
+  delete_session_data, update_session_metadata
+- Add session_id to load_collected_data/load_coded_data return dicts
+- Rewrite Session Management tab: DB-aware session browser with
+  rename, test-flag, delete, and file operations in expander
+- Add session filter to dashboard with test-run warning banner
+- Bump date_before default from 2026-01-01 to 2030-01-01
+- Add empty subreddit guard to Start button
+- Full UX simplification: 23 visible widgets -> 1 in thesis mode,
+  session label field, mode badge, all settings in Advanced expander
+- Thesis config now sets all 8 parameters (was 2)
+- Session label wired end-to-end: input -> ScrapeRun.extra_metadata

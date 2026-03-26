@@ -113,7 +113,7 @@ class CollectionParams(BaseModel):
     # Date range filtering — JSON endpoint only (Unix timestamps)
     # Default: 2020-01-01 00:00:00 UTC → 2025-12-31 23:59:59 UTC
     date_after:  float = Field(default=1577836800.0, description="Unix timestamp — posts before this date excluded (JSON service only)")
-    date_before: float = Field(default=1767225600.0, description="Unix timestamp — posts after this date excluded (JSON service only)")
+    date_before: float = Field(default=1893456000.0, description="Unix timestamp — posts after this date excluded (JSON service only). Default: 2030-01-01")
 
     # Set by modules/reddit_scraper.py before job start
     user_agent:          Optional[str] = None
