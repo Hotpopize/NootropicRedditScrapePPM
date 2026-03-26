@@ -536,6 +536,10 @@ def render():
             active_src = st.session_state.get('active_data_source', 'praw')
             src_label = "via Reddit API (PRAW)" if active_src == 'praw' else "via JSON Endpoint"
             st.success(f"Successfully collected and saved {saved_count} items {src_label}.")
+            st.info(
+                "**Next step →** Go to **🤖 Automated Qualitative Coding** in the "
+                "sidebar to assign PPM codes to your collected posts."
+            )
 
             with st.expander("Collection Statistics & Replicability Info"):
                 col_a, col_b, col_c = st.columns(3)

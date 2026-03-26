@@ -7,8 +7,10 @@
 # Provides at-a-glance visibility into data collection progress, coding
 # distribution, and session status. Reads from session_state by default;
 # optionally filters by session using session_id field in item dicts.
-# Queries DB once per render for the session list (get_all_sessions) —
-# fast, read-only, no writes or background calls.
+# Queries DB once per render for the session list (get_all_sessions).
+# Inline session actions (rename, test-flag, delete) are available when
+# a specific session is selected — lightweight alternative to the full
+# session browser in data_manager.py.
 #
 # All four session_state keys accessed here (collected_data, coded_data,
 # codebook_manager, session_id) are guaranteed by app.py's startup
@@ -101,9 +103,8 @@ def render() -> None:
         if has_test_sessions:
             st.warning(
                 "⚠️ **Test session data included.** Some sessions are flagged as "
-                "test runs. Select a specific session above to view only "
-                "production data, or manage test flags in Data Export → "
-                "Session Management."
+                "test runs. Select a specific session above to exclude test data, "
+                "or use the session actions to change the flag."
             )
     else:
         # Specific session selected — filter in Python
@@ -210,6 +211,16 @@ def render() -> None:
     total_codes     = len(st.session_state.codebook_manager.get_all())
     completion_pct  = (coded_count / collected_count * 100) if collected_count else 0.0
 
+    # --- Onboarding banner for first-time users ---
+    if collected_count == 0 and coded_count == 0 and selected_idx == 0:
+        st.info(
+            "👋 **Welcome!** You haven't collected any data yet.\n\n"
+            "Go to **🌐 Data Collection** in the sidebar to get started. "
+            f"Your thesis needs {THESIS_TARGET_MIN}–{THESIS_TARGET_MAX} posts "
+            "from 5 subreddits — the default settings are already configured. "
+            "Just type a session label, click Start, and wait."
+        )
+
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Posts Collected", collected_count)
@@ -248,27 +259,27 @@ def render() -> None:
     st.divider()
 
     # -----------------------------------------------------------------------
-    # Research Context
+    # Research Context (collapsed — useful for orientation, not daily use)
     # -----------------------------------------------------------------------
-    st.subheader("📚 Research Context")
-    st.info(
-        "**Thesis:** Caffeine to Brain Boosts: Using Online Communities to Understand "
-        "the Nootropics Market\n\n"
-        "**Theoretical Framework:** Push-Pull-Mooring (PPM) model — applied deductively "
-        "via netnographic analysis of Reddit communities.\n"
-        "- **Push Factors (7 codes):** Dissatisfaction with conventional stimulants "
-        "(side effects, tolerance, health risk, dependency, cost, ethics, efficacy doubt)\n"
-        "- **Pull Factors (7 codes):** Attraction to natural nootropics "
-        "(naturalness, safety, sustainability, holistic benefits, community endorsement, "
-        "neuroprotection, cognitive specificity)\n"
-        "- **Mooring Factors (12 codes):** Barriers and facilitators of switching "
-        "(habit, financial costs, learning costs, information asymmetry, stigma, "
-        "ethics; community info, accessibility, health consciousness, low switching costs)\n\n"
-        "**Communities:** r/Nootropics · r/StackAdvice · r/Supplements · "
-        "r/Decaf · r/Biohackers (2020–2025)\n\n"
-        "**Method:** Qualitative netnography with deductive PPM coding via local LLM "
-        "(Ollama: llama3.1 / gemma3:12b). Export to NVivo/MAXQDA for deep analysis."
-    )
+    with st.expander("📚 Research Context", expanded=False):
+        st.info(
+            "**Thesis:** Caffeine to Brain Boosts: Using Online Communities to Understand "
+            "the Nootropics Market\n\n"
+            "**Theoretical Framework:** Push-Pull-Mooring (PPM) model — applied deductively "
+            "via netnographic analysis of Reddit communities.\n"
+            "- **Push Factors (7 codes):** Dissatisfaction with conventional stimulants "
+            "(side effects, tolerance, health risk, dependency, cost, ethics, efficacy doubt)\n"
+            "- **Pull Factors (7 codes):** Attraction to natural nootropics "
+            "(naturalness, safety, sustainability, holistic benefits, community endorsement, "
+            "neuroprotection, cognitive specificity)\n"
+            "- **Mooring Factors (12 codes):** Barriers and facilitators of switching "
+            "(habit, financial costs, learning costs, information asymmetry, stigma, "
+            "ethics; community info, accessibility, health consciousness, low switching costs)\n\n"
+            "**Communities:** r/Nootropics · r/StackAdvice · r/Supplements · "
+            "r/Decaf · r/Biohackers (2020–2025)\n\n"
+            "**Method:** Qualitative netnography with deductive PPM coding via local LLM "
+            "(Ollama: llama3.1 / gemma3:12b). Export to NVivo/MAXQDA for deep analysis."
+        )
 
     st.divider()
 

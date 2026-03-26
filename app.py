@@ -182,10 +182,14 @@ with st.sidebar:
 
     # Session info — always visible in sidebar
     st.sidebar.divider()
+    _label = st.session_state.get('session_label', '')
+    _session_display = _label if _label else st.session_state.session_id
+    _collected_n = len(st.session_state.get('collected_data', []))
+    _coded_n = len(st.session_state.get('coded_data', []))
     st.sidebar.caption(
-        f"Session: `{st.session_state.session_id}`  \n"
-        f"Collected: {len(st.session_state.get('collected_data', []))} items  \n"
-        f"Coded: {len(st.session_state.get('coded_data', []))} items"
+        f"Session: **{_session_display}**  \n"
+        f"Collected: {_collected_n} items  \n"
+        f"Coded: {_coded_n} items"
     )
 
 # ---------------------------------------------------------------------------

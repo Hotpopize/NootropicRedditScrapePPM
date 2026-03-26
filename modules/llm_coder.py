@@ -152,8 +152,8 @@ def render():
         batch_size = st.number_input(
             "Batch Size",
             min_value=1,
-            max_value=50,
-            value=10,
+            max_value=120,
+            value=25,
             help="Number of items to code in this run.",
         )
 
@@ -313,37 +313,35 @@ def render():
 
                 is_relevant = coding_data.get('is_relevant', True)
 
+                # Capture decision logic for audit
+                coded_item_meta = {
+                    'coded_at':        datetime.now().isoformat(),
+                    'coded_by':        f"Ollama-{model_selection}",
+                    'coding_approach': coding_approach,
+                    'raw_prompt':      prompt,
+                    'raw_response':    raw_response,
+                    'rationale':       coding_data.get('rationale', ''),
+                }
+
                 if not is_relevant:
                     coded_item = {
                         **item,
+                        **coded_item_meta,
                         'ppm_category':    'Excluded (Irrelevant)',
                         'ppm_subcodes':    [],
                         'themes':          [],
                         'evidence_quotes': [],
                         'confidence':      'High',
-                        'coded_at':        datetime.now().isoformat(),
-                        'coded_by':        f"Ollama-{model_selection}",
-                        'coding_approach': coding_approach,
-                        'rationale':       coding_data.get(
-                            'rationale', 'Does not meet inclusion criteria'
-                        ),
-                        'raw_prompt':      prompt,
-                        'raw_response':    raw_response,
                     }
                 else:
                     coded_item = {
                         **item,
+                        **coded_item_meta,
                         'ppm_category':    coding_data.get('ppm_category', 'Unknown'),
                         'ppm_subcodes':    coding_data.get('ppm_subcodes', []),
                         'themes':          coding_data.get('emergent_themes', []),
                         'evidence_quotes': coding_data.get('evidence_quotes', []),
                         'confidence':      coding_data.get('confidence', 'Medium'),
-                        'coded_at':        datetime.now().isoformat(),
-                        'coded_by':        f"Ollama-{model_selection}",
-                        'coding_approach': coding_approach,
-                        'rationale':       coding_data.get('rationale', ''),
-                        'raw_prompt':      prompt,
-                        'raw_response':    raw_response,
                     }
 
                 coded_results.append(coded_item)
@@ -408,6 +406,11 @@ def render():
         progress_bar.empty()
 
         st.success(f"✅ Coded and saved **{saved_count}** items.")
+        st.info(
+            "**Next step →** Review the results in the **📊 Dashboard** or "
+            "go to **💾 Data Export & Audit** to generate your thesis files."
+        )
+
         if parse_failures:
             st.warning(
                 f"⚠️ {parse_failures} item(s) were skipped due to malformed JSON "

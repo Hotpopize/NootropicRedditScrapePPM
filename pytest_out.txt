@@ -1,0 +1,119 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.12.3, pytest-7.4.4, pluggy-1.0.0
+rootdir: C:\Users\iamab\Documents\MasterNOOoffline\NootropicRedditScrapePPM\NootropicRedditScrapePPM
+plugins: anyio-4.2.0
+collected 18 items
+
+tests\test_reddit_helpers.py .....                                       [ 27%]
+tests\test_reddit_json_service.py .....F                                 [ 61%]
+tests\test_reddit_service.py ....FFF                                     [100%]
+
+================================== FAILURES ===================================
+__________________________ test_collect_data_yields ___________________________
+
+    def test_collect_data_yields():
+        service = RedditJSONService(user_agent="TestAgent:v1")
+>       params = CollectionParams(
+            subreddits=["Nootropics"],
+            method="Recent Posts (Hot)",
+            limit=2,
+            search_query="",
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for CollectionParams
+E       time_filter
+E         Field required [type=missing, input_value={'subreddits': ['Nootropi...: 2, 'search_query': ''}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.8/v/missing
+
+tests\test_reddit_json_service.py:59: ValidationError
+_______________________ test_verify_credentials_failure _______________________
+
+mock_praw = <MagicMock name='Reddit' id='2520972203008'>
+
+    @patch('praw.Reddit')
+    def test_verify_credentials_failure(mock_praw):
+        mock_reddit = Mock()
+        mock_reddit.user.me.side_effect = Exception("Auth failed")
+        mock_praw.return_value = mock_reddit
+    
+        creds = RedditCredentials(client_id="id", client_secret="secret", user_agent="test")
+        service = RedditService(creds)
+    
+>       assert service.verify_credentials() is False
+E       assert True is False
+E        +  where True = <bound method RedditService.verify_credentials of <services.reddit_service.RedditService object at 0x0000024AF4F827E0>>()
+E        +    where <bound method RedditService.verify_credentials of <services.reddit_service.RedditService object at 0x0000024AF4F827E0>> = <services.reddit_service.RedditService object at 0x0000024AF4F827E0>.verify_credentials
+
+tests\test_reddit_service.py:64: AssertionError
+___________________________ test_fetch_posts_empty ____________________________
+
+mock_praw = <MagicMock name='Reddit' id='2520971730800'>
+
+    @patch('praw.Reddit')
+    def test_fetch_posts_empty(mock_praw):
+        mock_reddit = Mock()
+        mock_sub = Mock()
+        mock_sub.hot.return_value = []
+        mock_reddit.subreddit.return_value = mock_sub
+        mock_praw.return_value = mock_reddit
+    
+        creds = RedditCredentials(client_id="id", client_secret="secret", user_agent="test")
+        service = RedditService(creds)
+    
+>       posts = service.fetch_posts("Nootropics", "hot", 10)
+E       AttributeError: 'RedditService' object has no attribute 'fetch_posts'. Did you mean: '_fetch_posts'?
+
+tests\test_reddit_service.py:77: AttributeError
+__________________________ test_collect_data_yields ___________________________
+
+mock_praw = <MagicMock name='Reddit' id='2520971731520'>
+
+    @patch('praw.Reddit')
+    def test_collect_data_yields(mock_praw):
+        mock_reddit = Mock()
+        mock_sub = Mock()
+    
+        mock_post = Mock()
+        mock_post.id = "1"
+        mock_post.title = "Test"
+        mock_post.selftext = "Text"
+        mock_post.author = "user"
+        mock_post.created_utc = 1600000000.0
+        mock_post.url = "http://test"
+        mock_post.permalink = "/r/test"
+        mock_post.subreddit = Mock()
+        mock_post.subreddit.display_name = "Nootropics"
+        mock_post.num_comments = 0
+        mock_post.score = 1
+        mock_post.over_18 = False
+    
+        mock_sub.hot.return_value = [mock_post]
+        mock_reddit.subreddit.return_value = mock_sub
+        mock_praw.return_value = mock_reddit
+    
+        creds = RedditCredentials(client_id="id", client_secret="secret", user_agent="test")
+        service = RedditService(creds)
+>       params = CollectionParams(subreddits=["Nootropics"], method="Recent Posts (Hot)", limit=1, search_query="")
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for CollectionParams
+E       time_filter
+E         Field required [type=missing, input_value={'subreddits': ['Nootropi...: 1, 'search_query': ''}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.8/v/missing
+
+tests\test_reddit_service.py:105: ValidationError
+============================== warnings summary ===============================
+core\database.py:66
+  C:\Users\iamab\Documents\MasterNOOoffline\NootropicRedditScrapePPM\NootropicRedditScrapePPM\core\database.py:66: MovedIn20Warning: The ``declarative_base()`` function is now available as sqlalchemy.orm.declarative_base(). (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+    Base = declarative_base()
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: Type google.protobuf.pyext._message.ScalarMapContainer uses PyType_Spec with a metaclass that has custom tp_new. This is deprecated and will no longer be allowed in Python 3.14.
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: Type google.protobuf.pyext._message.MessageMapContainer uses PyType_Spec with a metaclass that has custom tp_new. This is deprecated and will no longer be allowed in Python 3.14.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_reddit_json_service.py::test_collect_data_yields - pydantic...
+FAILED tests/test_reddit_service.py::test_verify_credentials_failure - assert...
+FAILED tests/test_reddit_service.py::test_fetch_posts_empty - AttributeError:...
+FAILED tests/test_reddit_service.py::test_collect_data_yields - pydantic_core...
+================== 4 failed, 14 passed, 3 warnings in 2.67s ===================

@@ -421,9 +421,9 @@ def render():
             if selected.get('first_collected'):
                 date_str = str(selected['first_collected'])[:10]
                 detail_parts.append(f"**Date:** {date_str}")
-            if selected.get('data_source'):
+            if selected.get('data_sources'):
                 detail_parts.append(
-                    f"**Source:** {', '.join(selected['data_source'])}"
+                    f"**Source:** {', '.join(selected['data_sources'])}"
                 )
             if detail_parts:
                 st.caption(' · '.join(detail_parts))
