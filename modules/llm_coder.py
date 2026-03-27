@@ -64,7 +64,7 @@ import streamlit as st
 from datetime import datetime
 
 from modules import ollama_client as ollama
-from modules.codebook import CodebookManager, CodeCategory
+from modules.codebook import CodebookManager, CodeCategory, CODING_RULES
 from utils.db_helpers import load_codebook, log_action, save_coded_data
 
 
@@ -152,8 +152,8 @@ def render():
         batch_size = st.number_input(
             "Batch Size",
             min_value=1,
-            max_value=120,
-            value=25,
+            max_value=50,
+            value=10,
             help="Number of items to code in this run.",
         )
 
@@ -291,8 +291,11 @@ def render():
             try:
                 prompt = create_coding_prompt(item, coding_approach, strict_relevance)
                 system_prompt = (
-                    "You are an academic research assistant specialised in qualitative "
-                    "thematic coding. Output only valid JSON with no markdown formatting."
+                    "You are a qualitative research coder applying the Push-Pull-Mooring "
+                    "(PPM) migration framework to Reddit posts about cognitive enhancement. "
+                    "Your task is to identify what pushes users away from conventional "
+                    "stimulants and what pulls them toward natural nootropics. "
+                    "Output only valid JSON with no markdown formatting."
                 )
 
                 raw_response = ollama.generate_completion(
@@ -313,35 +316,37 @@ def render():
 
                 is_relevant = coding_data.get('is_relevant', True)
 
-                # Capture decision logic for audit
-                coded_item_meta = {
-                    'coded_at':        datetime.now().isoformat(),
-                    'coded_by':        f"Ollama-{model_selection}",
-                    'coding_approach': coding_approach,
-                    'raw_prompt':      prompt,
-                    'raw_response':    raw_response,
-                    'rationale':       coding_data.get('rationale', ''),
-                }
-
                 if not is_relevant:
                     coded_item = {
                         **item,
-                        **coded_item_meta,
                         'ppm_category':    'Excluded (Irrelevant)',
                         'ppm_subcodes':    [],
                         'themes':          [],
                         'evidence_quotes': [],
                         'confidence':      'High',
+                        'coded_at':        datetime.now().isoformat(),
+                        'coded_by':        f"Ollama-{model_selection}",
+                        'coding_approach': coding_approach,
+                        'rationale':       coding_data.get(
+                            'rationale', 'Does not meet inclusion criteria'
+                        ),
+                        'raw_prompt':      prompt,
+                        'raw_response':    raw_response,
                     }
                 else:
                     coded_item = {
                         **item,
-                        **coded_item_meta,
                         'ppm_category':    coding_data.get('ppm_category', 'Unknown'),
                         'ppm_subcodes':    coding_data.get('ppm_subcodes', []),
                         'themes':          coding_data.get('emergent_themes', []),
                         'evidence_quotes': coding_data.get('evidence_quotes', []),
                         'confidence':      coding_data.get('confidence', 'Medium'),
+                        'coded_at':        datetime.now().isoformat(),
+                        'coded_by':        f"Ollama-{model_selection}",
+                        'coding_approach': coding_approach,
+                        'rationale':       coding_data.get('rationale', ''),
+                        'raw_prompt':      prompt,
+                        'raw_response':    raw_response,
                     }
 
                 coded_results.append(coded_item)
@@ -406,17 +411,16 @@ def render():
         progress_bar.empty()
 
         st.success(f"✅ Coded and saved **{saved_count}** items.")
-        st.info(
-            "**Next step →** Review the results in the **📊 Dashboard** or "
-            "go to **💾 Data Export & Audit** to generate your thesis files."
-        )
-
         if parse_failures:
             st.warning(
                 f"⚠️ {parse_failures} item(s) were skipped due to malformed JSON "
                 "output from the model. Consider switching to a more capable model "
                 "or reviewing the prompt structure."
             )
+        st.info(
+            "**Next step →** Review your results on the **📊 Dashboard**, "
+            "or go to **💾 Data Export & Audit** to export for NVivo/MAXQDA."
+        )
 
         # --- Results summary ---
         st.subheader("📊 Coding Results Summary")
@@ -506,12 +510,12 @@ def create_coding_prompt(item: dict, approach: str, strict_relevance: bool = Fal
         for c in codes:
             if c.name.startswith("[Reserved") or c.name.startswith("[TBD"):
                 continue
-            entry = f"{c.id}: {c.name} — {c.definition}"
+            lines = [f"{c.id}: {c.name} — {c.definition}"]
             if c.include:
-                entry += f" (INCLUDE: {c.include})"
+                lines.append(f"  ✅ INCLUDE: {c.include}")
             if c.exclude:
-                entry += f" (EXCLUDE: {c.exclude})"
-            formatted.append(entry)
+                lines.append(f"  ⛔ EXCLUDE: {c.exclude}")
+            formatted.append("\n".join(lines))
         return "\n".join(formatted) if formatted else "- No codes defined."
 
     push_section = format_codebook_section(CodeCategory.PUSH)
@@ -563,6 +567,8 @@ PULL FACTORS (attraction to natural nootropics):
 MOORING FACTORS:
 {moor_section}
 ----------------------------
+
+{CODING_RULES}
 """
 
     if approach == "Deductive (PPM Framework Only)":

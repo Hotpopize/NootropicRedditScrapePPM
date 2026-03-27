@@ -130,10 +130,11 @@ class JobManager:
             # are skipped (no row to update) rather than raising silently.
             try:
                 create_scrape_run(
-                    job_id     = job_id,
+                    job_id      = job_id,
                     config_hash = config_hash,
-                    parameters = params.model_dump(),
-                    session_id = params.session_id,
+                    parameters  = params.model_dump(),
+                    session_id  = params.session_id,
+                    label       = params.session_label,
                 )
             except Exception as e:
                 logger.warning(

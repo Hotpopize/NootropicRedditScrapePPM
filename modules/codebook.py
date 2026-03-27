@@ -34,6 +34,7 @@
 #   Code                             — Dataclass for single codebook entry
 #   CodebookManager                  — Business logic class
 #   DEFAULT_CODES                    — 31-entry canonical code list
+#   CODING_RULES                     — LLM boundary enforcement text (shared with llm_coder)
 #   get_ppm_keywords()               — Keyword dict derived from include fields
 #   update_codebook_frequencies()    — Called by llm_coder.py after coding runs
 #   render()                         — Streamlit page entry point
@@ -340,6 +341,49 @@ DEFAULT_CODES = [
 ]
 
 
+# =============================================================================
+# CODING RULES — shared by to_llm_prompt() and llm_coder.create_coding_prompt()
+# Single source of truth for boundary enforcement. ~220 tokens.
+# =============================================================================
+
+CODING_RULES = """
+## CODING RULES — READ BEFORE ASSIGNING ANY CODE
+
+DIRECTION OF COMPLAINT:
+- PUSH codes apply ONLY when the dissatisfaction targets the ORIGIN substance
+  (caffeine, Adderall, Ritalin, modafinil, prescription stimulants).
+  A complaint about a nootropic's side effects is NOT a push factor.
+- PULL codes apply ONLY when the attraction targets the DESTINATION substance
+  (natural nootropics, adaptogens, mushroom extracts, herbal supplements).
+  Praise for caffeine is NOT a pull factor.
+- MOOR-F (facilitator) = something that makes switching EASIER.
+  MOOR-I (inhibitor) = something that makes switching HARDER.
+
+BOUNDARY ENFORCEMENT:
+- Only assign a code when the text matches that code's INCLUDE criteria.
+  Thematic adjacency is not enough — the language must specifically fit.
+- EXCLUDE criteria are HARD REDIRECTS. If the text matches an EXCLUDE line,
+  do NOT assign that code. Assign the redirected code instead.
+  Example: A post about long-term heart damage → EXCLUDE from PUSH-01,
+  assign PUSH-04 (Health Risk Perception) instead.
+
+MULTI-CODE ASSIGNMENT:
+- Assign multiple codes ONLY when the text contains distinct, quotable evidence
+  for EACH code. Do not infer codes from a single vague sentence.
+- When two codes seem to overlap, choose the one whose INCLUDE criteria more
+  precisely match the specific language used in the text.
+
+WORKED EXAMPLE:
+  Post: "I quit Adderall because the crashes were unbearable. Started taking
+  lion's mane instead — it's gentler and I don't get the afternoon slump."
+  ✅ CORRECT: PUSH-01 (crashes = acute side effects of ORIGIN),
+              PULL-03 (gentler, no slump = sustainable benefits of DESTINATION)
+  ❌ WRONG:   PUSH-03 (no dependency/withdrawal language),
+              PULL-02 (no explicit safety claim — "gentler" describes effect profile,
+                       not risk perception)
+""".strip()
+
+
 def get_ppm_keywords() -> dict:
     """
     Generate the PPM keyword dict from include fields in DEFAULT_CODES.
@@ -500,7 +544,11 @@ class CodebookManager:
                 prompt += f"- **{code.id}** {code.name}: {code.definition}\n"
                 if code.include:
                     prompt += f"  - Include: {code.include}\n"
+                if code.exclude:
+                    prompt += f"  - ⛔ Exclude: {code.exclude}\n"
             prompt += "\n"
+
+        prompt += CODING_RULES + "\n\n"
 
         prompt += (
             "## OUTPUT FORMAT\n"
@@ -606,6 +654,36 @@ def update_codebook_frequencies(coded_results: list[dict], session_id: str) -> N
 # STREAMLIT UI
 # =============================================================================
 
+# Category filter labels — used by View and Edit tabs
+_CATEGORY_LABELS = {
+    "All":                    None,
+    "Push Factors":           CodeCategory.PUSH,
+    "Pull Factors":           CodeCategory.PULL,
+    "Mooring Facilitators":   CodeCategory.MOOR_FACILITATOR,
+    "Mooring Inhibitors":     CodeCategory.MOOR_INHIBITOR,
+    "Emergent Themes":        CodeCategory.EMERGENT,
+}
+
+
+def _render_code_card(code: Code) -> None:
+    """
+    Render a single code as an expander with consistent field display.
+    Used by the View tab for detail view below the summary table.
+
+    Shows all non-empty fields: definition (always), include, exclude, source.
+    Previously the View tab had 5 copy-pasted blocks with inconsistent fields
+    (MOOR codes omitted Source). This helper eliminates that.
+    """
+    with st.expander(f"**[{code.id}]** {code.name}  ·  used {code.frequency}×"):
+        st.write(f"**Definition:** {code.definition}")
+        if code.include:
+            st.caption(f"**Include:** {code.include}")
+        if code.exclude:
+            st.caption(f"**Exclude:** {code.exclude}")
+        if code.source:
+            st.caption(f"**Source:** {code.source}")
+
+
 def render() -> None:
     """Streamlit page entry point — called by app.py routing."""
     st.header("📖 Codebook: PPM Framework")
@@ -620,18 +698,25 @@ def render() -> None:
 
     mgr = st.session_state.codebook_manager
 
-    deductive_count = len([c for c in mgr.codes if c.category != CodeCategory.EMERGENT])
-    emergent_count  = len(mgr.get_by_category(CodeCategory.EMERGENT))
+    # --- Top-level stats ---
+    active_codes   = [c for c in mgr.codes if not c.name.startswith("[")]
+    deductive_count = len([c for c in active_codes if c.category != CodeCategory.EMERGENT])
+    emergent_count  = len([c for c in active_codes if c.category == CodeCategory.EMERGENT])
     total_freq      = sum(c.frequency for c in mgr.codes)
 
-    st.info(
-        f"**Deductive Codes:** {deductive_count} | "
-        f"**Emergent Codes:** {emergent_count} | "
-        f"**Total Coded:** {total_freq}"
-    )
+    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+    with col_s1:
+        st.metric("Deductive Codes", deductive_count)
+    with col_s2:
+        st.metric("Emergent Codes", emergent_count)
+    with col_s3:
+        st.metric("Total Coded", total_freq)
+    with col_s4:
+        placeholder_count = len(mgr.codes) - len(active_codes)
+        st.metric("Reserved Slots", placeholder_count)
 
     tab_view, tab_edit, tab_emergent, tab_export = st.tabs([
-        "📚 View", "➕ Add/Edit", "🔬 Emergent Queue", "💾 Export"
+        "📚 Browse", "✏️ Edit", "🔬 Emergent Queue", "💾 Export"
     ])
 
     with tab_view:
@@ -647,88 +732,219 @@ def render() -> None:
         _render_export_tab(mgr)
 
 
+# ---------------------------------------------------------------------------
+# View tab
+# ---------------------------------------------------------------------------
+
 def _render_view_tab(mgr: CodebookManager) -> None:
-    col1, col2 = st.columns(2)
+    # --- Category filter ---
+    selected_label = st.selectbox(
+        "Filter by category",
+        list(_CATEGORY_LABELS.keys()),
+        key="view_category_filter",
+    )
+    selected_cat = _CATEGORY_LABELS[selected_label]
 
-    with col1:
-        st.subheader("Push Factors")
-        for code in mgr.get_by_category(CodeCategory.PUSH):
-            with st.expander(f"**[{code.id}]** {code.name} ({code.frequency})"):
-                st.write(f"**Definition:** {code.definition}")
-                st.caption(f"Include: {code.include}")
-                st.caption(f"Source: {code.source}")
-
-        st.subheader("Pull Factors")
-        for code in mgr.get_by_category(CodeCategory.PULL):
-            with st.expander(f"**[{code.id}]** {code.name} ({code.frequency})"):
-                st.write(f"**Definition:** {code.definition}")
-                st.caption(f"Include: {code.include}")
-                st.caption(f"Source: {code.source}")
-
-    with col2:
-        st.subheader("Mooring Facilitators")
-        for code in mgr.get_by_category(CodeCategory.MOOR_FACILITATOR):
-            with st.expander(f"**[{code.id}]** {code.name} ({code.frequency})"):
-                st.write(f"**Definition:** {code.definition}")
-                st.caption(f"Include: {code.include}")
-
-        st.subheader("Mooring Inhibitors")
-        for code in mgr.get_by_category(CodeCategory.MOOR_INHIBITOR):
-            with st.expander(f"**[{code.id}]** {code.name} ({code.frequency})"):
-                st.write(f"**Definition:** {code.definition}")
-                st.caption(f"Include: {code.include}")
-
-        st.subheader("Emergent Themes")
-        emergent = [
-            c for c in mgr.get_by_category(CodeCategory.EMERGENT)
+    # Filter codes — exclude placeholders
+    if selected_cat is None:
+        visible_codes = [c for c in mgr.codes if not c.name.startswith("[")]
+    else:
+        visible_codes = [
+            c for c in mgr.get_by_category(selected_cat)
             if not c.name.startswith("[")
         ]
-        if emergent:
-            for code in emergent:
-                with st.expander(f"**[{code.id}]** {code.name} ({code.frequency})"):
-                    st.write(f"**Definition:** {code.definition}")
-        else:
-            st.caption("No emergent themes defined yet.")
 
+    if not visible_codes:
+        st.caption("No codes in this category yet.")
+        return
+
+    # --- Summary table ---
+    table_data = []
+    for c in visible_codes:
+        table_data.append({
+            "ID":         c.id,
+            "Name":       c.name,
+            "Definition": c.definition[:80] + ("…" if len(c.definition) > 80 else ""),
+            "Frequency":  c.frequency,
+        })
+
+    df = pd.DataFrame(table_data)
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # --- Detail cards ---
+    st.caption(f"Showing {len(visible_codes)} code(s) — click to expand details")
+    for code in visible_codes:
+        _render_code_card(code)
+
+
+# ---------------------------------------------------------------------------
+# Edit tab
+# ---------------------------------------------------------------------------
 
 def _render_edit_tab(mgr: CodebookManager) -> None:
-    st.subheader("Add or Edit Code")
 
-    category   = st.selectbox("Category", [c.value for c in CodeCategory])
-    code_id    = st.text_input("Code ID", placeholder="e.g., PUSH-01 or MOOR-F-01")
-    name       = st.text_input("Name")
-    definition = st.text_area("Definition")
-    include    = st.text_input("Include Criteria")
-    exclude    = st.text_input("Exclude Criteria")
-    source     = st.text_input("Source")
+    # --- Code selector ---
+    all_codes = mgr.get_all()
+    selector_options = ["— New Code —"] + [
+        f"{c.id}: {c.name}" for c in all_codes
+    ]
 
-    if st.button("Save Code", type="primary"):
-        if not code_id.strip():
-            st.error("Code ID is required. Use the format PUSH-01 or MOOR-F-01.")
-            return
-        if not name.strip() or not definition.strip():
-            st.error("Name and Definition are required.")
-            return
+    selected_option = st.selectbox(
+        "Select code to edit (or create new)",
+        selector_options,
+        key="edit_code_selector",
+    )
 
-        existing = mgr.get_by_id(code_id)
-        if existing:
-            mgr.update_code(
-                code_id, name=name, definition=definition,
-                include=include, exclude=exclude, source=source,
+    is_new = selected_option == "— New Code —"
+
+    if is_new:
+        sel_code = None
+        sel_id   = "_NEW"
+    else:
+        # Extract code ID from "PUSH-01: Acute Side Effects"
+        sel_code_id = selected_option.split(":")[0].strip()
+        sel_code    = mgr.get_by_id(sel_code_id)
+        sel_id      = sel_code.id if sel_code else "_NEW"
+
+    # --- Form fields with dynamic keys ---
+    # Keys include sel_id so switching codes forces fresh widgets with
+    # the new code's values. Streamlit's sticky state for the OLD key
+    # persists in session_state but is never rendered again.
+
+    category = st.selectbox(
+        "Category",
+        [c.value for c in CodeCategory],
+        index=(
+            [c.value for c in CodeCategory].index(sel_code.category.value)
+            if sel_code else 0
+        ),
+        key=f"edit_cat_{sel_id}",
+    )
+
+    code_id = st.text_input(
+        "Code ID",
+        value=sel_code.id if sel_code else "",
+        placeholder="e.g. PUSH-01, MOOR-F-01, EMER-06",
+        key=f"edit_id_{sel_id}",
+        disabled=not is_new,  # cannot change ID of existing code
+    )
+
+    name = st.text_input(
+        "Name",
+        value=sel_code.name if sel_code else "",
+        key=f"edit_name_{sel_id}",
+    )
+
+    definition = st.text_area(
+        "Definition",
+        value=sel_code.definition if sel_code else "",
+        key=f"edit_def_{sel_id}",
+    )
+
+    col_inc, col_exc = st.columns(2)
+    with col_inc:
+        include = st.text_input(
+            "Include Criteria",
+            value=sel_code.include if sel_code else "",
+            key=f"edit_inc_{sel_id}",
+        )
+    with col_exc:
+        exclude = st.text_input(
+            "Exclude Criteria",
+            value=sel_code.exclude if sel_code else "",
+            key=f"edit_exc_{sel_id}",
+        )
+
+    source = st.text_input(
+        "Source",
+        value=sel_code.source if sel_code else "",
+        key=f"edit_src_{sel_id}",
+    )
+
+    # --- Save button ---
+    col_save, col_delete = st.columns([3, 1])
+
+    with col_save:
+        if st.button("💾 Save Code", type="primary", key="edit_save_btn"):
+            if not code_id.strip():
+                st.error("Code ID is required. Use the format PUSH-01 or MOOR-F-01.")
+                return
+            if not name.strip() or not definition.strip():
+                st.error("Name and Definition are required.")
+                return
+
+            existing = mgr.get_by_id(code_id)
+            if existing:
+                mgr.update_code(
+                    code_id,
+                    name=name, definition=definition,
+                    include=include, exclude=exclude, source=source,
+                    category=CodeCategory(category),
+                )
+                st.success(f"✅ Updated {code_id}")
+            else:
+                new_code = Code(
+                    id=code_id, category=CodeCategory(category),
+                    name=name, definition=definition,
+                    include=include, exclude=exclude, source=source,
+                )
+                mgr.add_code(new_code)
+                st.success(f"✅ Added {code_id}")
+
+            save_codebook(mgr.to_dict(), st.session_state.get('session_id'))
+            st.rerun()
+
+    # --- Delete button (emergent/non-default codes only) ---
+    with col_delete:
+        if sel_code and not is_new:
+            # Only allow deletion of emergent or researcher-added codes.
+            # The 31 deductive DEFAULT_CODES IDs are protected.
+            default_ids = {c.id for c in DEFAULT_CODES}
+            is_deletable = sel_code.id not in default_ids
+
+            if is_deletable:
+                if st.button("🗑️ Delete", key="edit_delete_btn"):
+                    mgr.delete_code(sel_code.id)
+                    save_codebook(mgr.to_dict(), st.session_state.get('session_id'))
+                    st.success(f"✅ Deleted {sel_code.id}")
+                    st.rerun()
+            else:
+                st.button(
+                    "🗑️ Delete",
+                    disabled=True,
+                    help="Deductive codes cannot be deleted.",
+                    key="edit_delete_disabled",
+                )
+
+    # --- Reset to Defaults ---
+    st.divider()
+    with st.expander("⚠️ Reset Codebook to Defaults", expanded=False):
+        st.warning(
+            "This replaces the **entire** codebook with the original 31 deductive "
+            "codes. All frequency counts reset to zero. Any emergent codes you "
+            "added will be **permanently lost**."
+        )
+        if st.button("Reset to Default Codebook", type="secondary", key="reset_codebook_btn"):
+            st.session_state.codebook_manager = CodebookManager()
+            save_codebook(
+                st.session_state.codebook_manager.to_dict(),
+                st.session_state.get('session_id'),
             )
-            st.success(f"Updated {code_id}")
-        else:
-            new_code = Code(
-                id=code_id, category=CodeCategory(category),
-                name=name, definition=definition,
-                include=include, exclude=exclude, source=source,
+            log_action(
+                action='codebook_reset',
+                session_id=st.session_state.get('session_id', ''),
+                details={'reset_to': 'DEFAULT_CODES', 'code_count': 31},
             )
-            mgr.add_code(new_code)
-            st.success(f"Added {code_id}")
+            st.success("✅ Codebook reset to defaults (31 codes, frequency zero).")
+            st.rerun()
 
-        save_codebook(mgr.to_dict(), st.session_state.get('session_id'))
-        st.rerun()
 
+# ---------------------------------------------------------------------------
+# Emergent tab (preserved — logic is correct, in-memory queue is a known
+# limitation documented in the continuation prompt)
+# ---------------------------------------------------------------------------
 
 def _render_emergent_tab(mgr: CodebookManager) -> None:
     st.subheader("🔬 Emergent Theme Management")
@@ -780,8 +996,14 @@ def _render_emergent_tab(mgr: CodebookManager) -> None:
         )
 
 
+# ---------------------------------------------------------------------------
+# Export tab
+# ---------------------------------------------------------------------------
+
 def _render_export_tab(mgr: CodebookManager) -> None:
-    st.subheader("Export Options")
+    st.subheader("Export Codebook")
+
+    session_id = st.session_state.get('session_id', 'unknown')
 
     col1, col2, col3 = st.columns(3)
 
@@ -790,7 +1012,7 @@ def _render_export_tab(mgr: CodebookManager) -> None:
         st.download_button(
             "📄 Download CSV",
             data=df.to_csv(index=False).encode('utf-8'),
-            file_name="codebook.csv",
+            file_name=f"codebook_{session_id}.csv",
             mime="text/csv",
         )
 
@@ -798,7 +1020,7 @@ def _render_export_tab(mgr: CodebookManager) -> None:
         st.download_button(
             "📋 Download JSON",
             data=mgr.to_json().encode('utf-8'),
-            file_name="codebook.json",
+            file_name=f"codebook_{session_id}.json",
             mime="application/json",
         )
 
@@ -807,7 +1029,7 @@ def _render_export_tab(mgr: CodebookManager) -> None:
         st.download_button(
             "🤖 Download Coding Prompt",
             data=prompt.encode('utf-8'),
-            file_name="ppm_coding_prompt.txt",
+            file_name=f"ppm_coding_prompt_{session_id}.txt",
             mime="text/plain",
         )
         with st.expander("Preview Prompt"):

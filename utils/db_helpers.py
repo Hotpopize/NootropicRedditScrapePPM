@@ -89,7 +89,8 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def create_scrape_run(job_id: str, config_hash: str,
-                      parameters: dict, session_id: str = None) -> None:
+                      parameters: dict, session_id: str = None,
+                      label: str = None) -> None:
     """Create a new ScrapeRun record at job start. Status is set to RUNNING."""
     db = get_db_session()
     try:
@@ -99,6 +100,7 @@ def create_scrape_run(job_id: str, config_hash: str,
             config_hash=config_hash,
             parameters=parameters,
             session_id=session_id,
+            extra_metadata={'session_label': label} if label else None,
         )
         db.add(run)
         db.commit()

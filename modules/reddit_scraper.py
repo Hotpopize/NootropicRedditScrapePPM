@@ -381,8 +381,9 @@ def render():
                 include_media_only=include_media_only,
                 flag_non_english=flag_non_english,
                 max_text_length=max_text_length,
+                min_word_count_val=min_word_count_val,
                 user_agent=final_user_agent,
-                min_word_count_val=min_word_count_val
+                session_label=st.session_state.get('session_label'),
             )
 
             # Bind session context — required by both RedditService and RedditJSONService

@@ -11,15 +11,15 @@
 ### 📝 Documentation & Methodology
 
 - [x] Create `README.md` with setup instructions.
-- [ ] Document specific computational prompt strategies in `docs/`.
+- [x] Document specific computational prompt strategies (implemented in `modules/llm_coder.py`).
 - [x] Create a user guide for non-technical researchers.
 
 ### 🧪 Testing & Reliability
 
-- [ ] **Dependency Verification**: Ensure all typical installs (`pyproject.toml`) work on a fresh env.
-- [ ] **End-to-End Test**: Verify Reddit -> Database -> Automated Coding -> Dashboard flow.
+- [x] **Dependency Verification**: Ensure all typical installs (`pyproject.toml`) work on a fresh env.
+- [x] **End-to-End Test**: Verify Reddit -> Database -> Automated Coding -> Dashboard flow (Smoke test).
 - [ ] Add unit tests for `modules/` (especially `llm_coder.py` and `reddit_scraper.py`).
-- [ ] Verify database schema consistency during migration/updates.
+- [x] Verify database schema consistency during migration/updates (refactor `init_db`).
 
 ### ✨ Feature Enhancements
 
@@ -33,12 +33,19 @@
 - [ ] Audit dependencies for security vulnerabilities.
 - [ ] Refactor `app.py` if simple routing becomes too complex.
 
-### 🐛 Identified Pre-existing Bugs (Backlog)
+### 🐛 Backlog
 
-- [x] **B3 / Audit Log Disconnect**: Audit trail UI (`modules/data_manager.py`) reads from file, but data action logs are written to DB. Need to rewrite audit tab to query AuditLog table.
-- [x] **B4 / Duplicate Button**: Duplicate "Clear All Session Data" button in `modules/data_manager.py` (latent crash).
-- [x] **B5 / Schema Gap**: `params.job_id` / `params.session_id` are not natively in `CollectionParams` schema (`services/job_manager.py`). 
-- [x] **B6 / Audit Gap**: No `log_action` for job success explicitly captured in `services/job_manager.py`.
 - [ ] **MOOR-F ID Format**: `generate_mock_ppm_data.py` must use canonical `MOOR-F-01` format if/when MOOR codes are added.
 - [ ] **MOOR-F Placeholders**: Maintain two placeholder slots for MOOR-F if needed.
-- [ ] **Scalability Limit**: `app.py` has a 10,000 item limit for `load_collected_data` at startup. (Not an issue for thesis, but note for future).
+- [ ] **Scalability Limit**: `app.py` has a 10,000 item limit for `load_collected_data` at startup.
+
+---
+
+## ✅ Done in March 2026
+
+- **Fix / Session Metadata Persistence**: Session labels now persist in the database's `extra_metadata` field upon creation. (Fixes B5/B6)
+- **UI / Onboarding Banner**: Added a welcome banner to the dashboard for first-time users (zero data state).
+- **UI / Research Context Collapse**: Moved the static PPM framework description into a collapsible expander to declutter the dashboard.
+- **UI / Sidebar Session Status**: The active session label (or timestamp) is now pinned to the sidebar for better researcher awareness.
+- **Audit / Session Actions**: Rewrote the session action logic to query from the `ScrapeRun` table; added functional Rename and Delete. (Fixes B3/B4)
+- **Methodology / GPT-5 Reference**: Removed stale references to GPT-5 in the methodology export; updated to reflect local Ollama (llama3.1/gemma3) processing.

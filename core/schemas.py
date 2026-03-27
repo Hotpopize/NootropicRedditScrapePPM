@@ -118,6 +118,7 @@ class CollectionParams(BaseModel):
     # Set by modules/reddit_scraper.py before job start
     user_agent:          Optional[str] = None
     collection_started:  Optional[str] = None
+    session_label:       Optional[str] = None
 
     # Set by job_manager.py after instantiation — not passed from UI
     job_id:     Optional[str] = None
