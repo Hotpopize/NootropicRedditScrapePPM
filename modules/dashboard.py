@@ -319,6 +319,22 @@ def render() -> None:
                         f"**Date Range:** {dates.min().date()} — {dates.max().date()}"
                     )
 
+        # --- Per-subreddit temporal matrix ---
+        if 'subreddit' in df.columns and 'created_utc' in df.columns:
+            valid = df[df['created_utc'].notna() & (df['created_utc'] > 0)].copy()
+            if not valid.empty:
+                valid['_year'] = pd.to_datetime(
+                    valid['created_utc'], unit='s', errors='coerce'
+                ).dt.year
+
+                st.write("**Temporal Coverage (posts per subreddit × year)**")
+                pivot = valid.pivot_table(
+                    index='subreddit', columns='_year',
+                    values='id', aggfunc='count', fill_value=0,
+                )
+                pivot.columns = [str(int(y)) for y in pivot.columns]
+                st.dataframe(pivot, use_container_width=True)
+
     # -----------------------------------------------------------------------
     # Coding Distribution
     # -----------------------------------------------------------------------

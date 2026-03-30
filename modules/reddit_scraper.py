@@ -62,8 +62,16 @@ def render():
     use_thesis_config = st.session_state.use_thesis_config
 
     if use_thesis_config:
-        # --- Thesis mode: all parameters hard-set ---
-        subreddits        = list(THESIS_SUBREDDITS)
+        # --- Thesis mode: methodology-locked parameters ---
+        # Subreddits are selectable so the researcher can run one sub at a time
+        # for temporal coverage control. All other parameters are locked.
+        subreddits = st.multiselect(
+            "Thesis subreddits to collect",
+            options=THESIS_SUBREDDITS,
+            default=THESIS_SUBREDDITS,
+            help="Deselect subreddits you've already collected to run incrementally.",
+            key="thesis_sub_select",
+        )
         collection_method = "Top Posts (Time Period)"
         time_filter       = "all"
         limit             = 50
@@ -79,7 +87,7 @@ def render():
 
         st.info(
             "🎓 **Thesis Mode** · "
-            f"{len(THESIS_SUBREDDITS)} subreddits · "
+            f"{len(subreddits)} of {len(THESIS_SUBREDDITS)} subreddits · "
             "Top posts (all time) · "
             f"{limit}/sub · "
             f"min {min_word_count_val} words · "
@@ -564,6 +572,43 @@ def render():
                     st.metric("Flagged Non-English", final_result.stats.flagged_non_english)
                     st.metric("Rate Limit Events", len(rate_limit_events))
                     st.metric("Collection Hash", collection_hash[:8] + "...")
+
+                # --- Per-subreddit temporal breakdown ---
+                this_run = [
+                    item for item in st.session_state.collected_data
+                    if item.get('session_id') == st.session_state.session_id
+                ]
+                if this_run:
+                    st.divider()
+                    st.write("**Per-Subreddit Breakdown (this session)**")
+
+                    run_df = pd.DataFrame(this_run)
+                    if 'subreddit' in run_df.columns and 'created_utc' in run_df.columns:
+                        valid = run_df[run_df['created_utc'].notna() & (run_df['created_utc'] > 0)].copy()
+                        if not valid.empty:
+                            valid['year'] = pd.to_datetime(
+                                valid['created_utc'], unit='s', errors='coerce'
+                            ).dt.year
+
+                            sub_stats = valid.groupby('subreddit').agg(
+                                posts=('subreddit', 'count'),
+                                earliest=('year', 'min'),
+                                latest=('year', 'max'),
+                                avg_score=('score', 'mean'),
+                            ).reset_index()
+                            sub_stats['avg_score'] = sub_stats['avg_score'].round(0).astype(int)
+                            sub_stats.columns = ['Subreddit', 'Posts', 'Earliest', 'Latest', 'Avg Score']
+
+                            st.dataframe(sub_stats, use_container_width=True, hide_index=True)
+
+                            # Year × subreddit pivot for temporal gap detection
+                            pivot = valid.pivot_table(
+                                index='subreddit', columns='year',
+                                values='id', aggfunc='count', fill_value=0,
+                            )
+                            pivot.columns = [str(int(y)) for y in pivot.columns]
+                            st.write("**Posts by Year × Subreddit**")
+                            st.dataframe(pivot, use_container_width=True)
 
             if st.button("Start New Collection"):
                 JobManager.clear_job(job_id)
