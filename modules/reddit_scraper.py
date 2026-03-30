@@ -45,9 +45,12 @@ def render():
 
     # Mode badge — single-line status, not a choice widget
     if use_json:
-        st.caption("🟢 Collecting without credentials — no setup required")
+        st.caption(
+            "🟢 Collecting via public endpoint — no credentials needed. "
+            "~2 min for 5 subreddits. Comments not available in this mode."
+        )
     else:
-        st.caption("🔑 Collecting with Reddit API credentials")
+        st.caption("🔑 Collecting with Reddit API credentials — faster, comments available")
 
     # ===================================================================
     # Section 2: Thesis summary + Start button
@@ -376,6 +379,29 @@ def render():
                 st.session_state.active_data_source = 'json_endpoint'
                 final_user_agent = service.user_agent
 
+            # --- Pre-flight connection test ---
+            # Catches unreachable Reddit, network issues, and IP blocks
+            # before committing to a multi-minute collection job.
+            with st.spinner("Testing connection to Reddit..."):
+                try:
+                    if hasattr(service, 'verify_connection'):
+                        ok = service.verify_connection()
+                    elif hasattr(service, 'verify_credentials'):
+                        ok = service.verify_credentials()
+                    else:
+                        ok = True  # no check available — proceed optimistically
+
+                    if not ok:
+                        st.error(
+                            "❌ Could not reach Reddit. Check your internet connection "
+                            "and try again. If the problem persists, Reddit may be "
+                            "temporarily blocking requests — wait a few minutes."
+                        )
+                        return
+                except Exception as _conn_err:
+                    st.error(f"❌ Connection test failed: {_conn_err}")
+                    return
+
             params = CollectionParams(
                 subreddits=subreddits,
                 method=collection_method,
@@ -428,6 +454,20 @@ def render():
             if job_state.progress:
                 st.progress(job_state.progress.progress_percentage)
                 st.text(job_state.progress.status_message)
+                
+                # Time estimate — 20s per subreddit at 10 req/min (3 pages × 6s + overhead)
+                pct = job_state.progress.progress_percentage
+                if 0 < pct < 1.0:
+                    # Estimate based on known subreddit count and current progress
+                    _est_secs_per_sub = 20
+                    _remaining_frac = 1.0 - pct
+                    _total_subs = len(subreddits) if subreddits else 5
+                    _remaining_subs = max(1, round(_remaining_frac * _total_subs))
+                    _est_remaining = _remaining_subs * _est_secs_per_sub
+                    if _est_remaining > 60:
+                        st.caption(f"⏱️ Estimated ~{_est_remaining // 60} min {_est_remaining % 60}s remaining")
+                    else:
+                        st.caption(f"⏱️ Estimated ~{_est_remaining}s remaining")
                 
                 if job_state.progress.rate_stats:
                     rate = job_state.progress.rate_stats
@@ -544,7 +584,18 @@ def render():
 
             active_src = st.session_state.get('active_data_source', 'praw')
             src_label = "via Reddit API (PRAW)" if active_src == 'praw' else "via JSON Endpoint"
-            st.success(f"Successfully collected and saved {saved_count} items {src_label}.")
+            if saved_count == 0:
+                st.warning(
+                    f"⚠️ **Collection completed but saved 0 items** {src_label}.\n\n"
+                    "This usually means Reddit rate-limited every request. "
+                    "The public JSON endpoint allows roughly 10 requests per minute — "
+                    "running multiple collections in quick succession exhausts this budget.\n\n"
+                    "**Try:** Wait 2 minutes, then click **Start New Collection** below. "
+                    "If the problem persists, check the Collection Statistics expander "
+                    "for Rate Limit Events."
+                )
+            else:
+                st.success(f"Successfully collected and saved {saved_count} items {src_label}.")
             st.info(
                 "**Next step →** Go to **🤖 Automated Qualitative Coding** in the "
                 "sidebar to assign PPM codes to your collected posts."
@@ -597,7 +648,7 @@ def render():
                                 avg_score=('score', 'mean'),
                             ).reset_index()
                             sub_stats['avg_score'] = sub_stats['avg_score'].round(0).astype(int)
-                            sub_stats.columns = ['Subreddit', 'Posts', 'Earliest', 'Latest', 'Avg Score']
+                            sub_stats.columns = ['Subreddit', 'Posts', 'Earliest Pst (Yr)', 'Latest Pst (Yr)', 'Avg Score']
 
                             st.dataframe(sub_stats, use_container_width=True, hide_index=True)
 

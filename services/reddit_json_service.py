@@ -207,8 +207,13 @@ class RedditJSONService:
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": self.user_agent})
 
-        # 30 req/min — more conservative than PRAW's 50 for unauthenticated access
-        self.rate_limiter = RateLimiter(requests_per_minute=30)
+        # 10 req/min — conservative for unauthenticated access.
+        # Reddit's undocumented limit for non-OAuth is ~10 req/min.
+        # Setting this higher (e.g. 30) causes constant 429 backoffs which
+        # freeze the UI and triple collection time. At 10 req/min each
+        # request waits ~6s, giving clean collection with zero 429s.
+        # For 5 subs × ~3 pages = 15 requests ≈ 90 seconds total.
+        self.rate_limiter = RateLimiter(requests_per_minute=10)
 
     @json_retry
     def _fetch_page(self, subreddit: str, sort: str,

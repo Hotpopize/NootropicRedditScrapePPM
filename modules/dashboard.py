@@ -292,23 +292,6 @@ def render() -> None:
         df = pd.DataFrame(filtered_collected)
         st.write(f"**Total Records:** {len(df)}")
 
-        col_left, col_right = st.columns(2)
-
-        with col_left:
-            if 'subreddit' in df.columns:
-                st.write("**Posts by Subreddit**")
-                subreddit_counts = df['subreddit'].value_counts()
-                st.bar_chart(subreddit_counts)
-
-        with col_right:
-            if 'data_source' in df.columns:
-                st.write("**Collection Method**")
-                source_counts = df['data_source'].value_counts().rename({
-                    'praw':          'Reddit API (PRAW)',
-                    'json_endpoint': 'JSON Endpoint',
-                })
-                st.bar_chart(source_counts)
-
         if 'created_utc' in df.columns:
             valid_utc = df['created_utc'].dropna()
             valid_utc = valid_utc[valid_utc > 0]
@@ -333,7 +316,16 @@ def render() -> None:
                     values='id', aggfunc='count', fill_value=0,
                 )
                 pivot.columns = [str(int(y)) for y in pivot.columns]
-                st.dataframe(pivot, use_container_width=True)
+
+                # Style the dataframe to highlight 0 values (gaps)
+                def highlight_zeros(val):
+                    color = 'red' if val == 0 else ''
+                    return f'color: {color}'
+                    
+                st.dataframe(
+                    pivot.style.map(highlight_zeros),
+                    use_container_width=True
+                )
 
     # -----------------------------------------------------------------------
     # Coding Distribution
