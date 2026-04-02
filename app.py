@@ -131,66 +131,33 @@ page = st.sidebar.radio(
     [
         "📊 Dashboard",
         "🌐 Data Collection",
-        "🤖 Automated Qualitative Coding",
         "📖 Codebook Management",
+        "🤖 Automated Qualitative Coding",
         "💾 Data Export & Audit",
     ],
 )
 
-# Ollama model validation — cached with 60-second TTL so the HTTP check
-# does not fire on every st.rerun() (which happens every ~1s during collection).
-# validate_models() contacts localhost:11434 — calling it per-rerun adds
-# ~2s latency per second during active data collection.
-_now           = time.time()
-_last_check    = st.session_state.get('ollama_last_check', 0.0)
-_OLLAMA_TTL    = 60.0   # seconds between Ollama health checks
-
-with st.sidebar:
-    if _now - _last_check > _OLLAMA_TTL or 'ollama_status' not in st.session_state:
-        with st.status("Checking System...", expanded=False) as _status:
-            _report = validate_models(auto_pull=False)
-            st.session_state.ollama_status     = _report
-            st.session_state.ollama_last_check = _now
-
-            if not _report['ollama_running']:
-                _status.update(label="Ollama Not Found", state="error", expanded=True)
-                st.error("Ollama is not running. Automated coding features will be disabled.")
-            elif _report['missing_models']:
-                _status.update(label="Missing Models", state="warning", expanded=True)
-                st.warning(f"Missing models: {', '.join(_report['missing_models'])}")
-                if st.button("Install Missing Models"):
-                    with st.spinner("Pulling models..."):
-                        _pull_report = validate_models(auto_pull=True)
-                        if _pull_report['status'] == 'ok':
-                            st.success("Models installed!")
-                            # Invalidate cache so next render re-checks
-                            st.session_state.ollama_last_check = 0.0
-                            st.rerun()
-                        else:
-                            st.error("Failed to install some models.")
-            else:
-                _status.update(label="System Ready", state="complete", expanded=False)
+# Deferred Ollama Status Badge — only shows after first check in Coding module
+_ollama_status = st.session_state.get('ollama_status')
+if _ollama_status:
+    if not _ollama_status['ollama_running']:
+        st.sidebar.error("⚠️ Ollama not running")
+    elif _ollama_status['missing_models']:
+        st.sidebar.warning(f"⚠️ Missing models: {', '.join(_ollama_status['missing_models'])}")
     else:
-        # Cached result — show status without re-checking
-        _cached = st.session_state.ollama_status
-        if not _cached['ollama_running']:
-            st.sidebar.error("⚠️ Ollama not running")
-        elif _cached['missing_models']:
-            st.sidebar.warning(f"⚠️ Missing models: {', '.join(_cached['missing_models'])}")
-        else:
-            st.sidebar.success("✅ System Ready")
+        st.sidebar.success("✅ Ollama Ready")
 
-    # Session info — always visible in sidebar
-    st.sidebar.divider()
-    _label = st.session_state.get('session_label', '')
-    _session_display = _label if _label else st.session_state.session_id
-    _collected_n = len(st.session_state.get('collected_data', []))
-    _coded_n = len(st.session_state.get('coded_data', []))
-    st.sidebar.caption(
-        f"Session: **{_session_display}**  \n"
-        f"Collected: {_collected_n} items  \n"
-        f"Coded: {_coded_n} items"
-    )
+# Session info — always visible in sidebar
+st.sidebar.divider()
+_label = st.session_state.get('session_label', '')
+_session_display = _label if _label else st.session_state.session_id
+_collected_n = len(st.session_state.get('collected_data', []))
+_coded_n = len(st.session_state.get('coded_data', []))
+st.sidebar.caption(
+    f"Session: **{_session_display}**  \n"
+    f"Collected: {_collected_n} items  \n"
+    f"Coded: {_coded_n} items"
+)
 
 # ---------------------------------------------------------------------------
 # Page routing

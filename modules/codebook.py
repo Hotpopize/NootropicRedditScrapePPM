@@ -948,12 +948,27 @@ def _render_edit_tab(mgr: CodebookManager) -> None:
 
 def _render_emergent_tab(mgr: CodebookManager) -> None:
     st.subheader("🔬 Emergent Theme Management")
-    st.write("Create new inductive codes discovered during analysis.")
+    st.write(
+        "Manage inductive themes identified during analysis. Approved themes "
+        "are integrated into the codebook for subsequent coding runs."
+    )
 
     with st.form("emergent_form"):
-        name       = st.text_input("Theme Name")
-        definition = st.text_area("Definition")
-        examples   = st.text_area("Example Excerpts")
+        name       = st.text_input("Theme Name", help="The label for the emergent category.")
+        
+        # Mapping PPM categories for tooltip context
+        category = st.selectbox(
+            "PPM Category", 
+            ["Push", "Pull", "Mooring"],
+            help=(
+                "**Push**: Dissatisfaction with conventional stimulants (side effects, tolerance).\n\n"
+                "**Pull**: Attraction to natural nootropics (safety, naturalness, sustainability).\n\n"
+                "**Mooring**: Facilitators or barriers (cost, community info, habits)."
+            )
+        )
+        
+        definition = st.text_area("Definition", help="The coding rule or criteria for this theme.")
+        examples   = st.text_area("Example Excerpts", help="Typical post text segments that represent this theme.")
 
         if st.form_submit_button("Create Emergent Code"):
             if name and definition:
@@ -963,37 +978,58 @@ def _render_emergent_tab(mgr: CodebookManager) -> None:
                 st.rerun()
 
     st.divider()
-    st.subheader("Flagged Candidates")
+    from utils.db_helpers import load_emergent_candidates, update_emergent_candidate_status
+    
+    tab_pending, tab_history = st.tabs(["⏳ Pending Candidates", "📜 History & Audit"])
+    session_id = st.session_state.get('session_id')
 
-    queue = st.session_state.get('emergent_queue', [])
-    if queue:
-        for i, candidate in enumerate(queue):
-            with st.expander(f"Candidate: {candidate['suggested_theme']}"):
-                st.write(f"**Text:** {candidate['text'][:200]}...")
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("Approve", key=f"approve_{i}"):
-                        mgr.create_emergent_code(
-                            candidate['suggested_theme'],
-                            "User-approved emergent theme",
-                            candidate['text'][:200],
-                        )
-                        # pop(i) is safe here: st.rerun() fires immediately after
-                        # this block, so the loop does not continue to the next
-                        # iteration with a stale index. The queue is re-read fresh
-                        # on the next render cycle.
-                        st.session_state.emergent_queue.pop(i)
-                        save_codebook(mgr.to_dict(), st.session_state.get('session_id'))
-                        st.rerun()
-                with col2:
-                    if st.button("Reject", key=f"reject_{i}"):
-                        st.session_state.emergent_queue.pop(i)
-                        st.rerun()
-    else:
-        st.caption(
-            "No flagged candidates. The LLM coder will flag text that does not "
-            "fit existing codes when using the Mixed coding approach."
-        )
+    with tab_pending:
+        queue = load_emergent_candidates(session_id, status='pending')
+        if queue:
+            for i, candidate in enumerate(queue):
+                with st.expander(f"Candidate: {candidate['name']} ({candidate['category']})"):
+                    st.write(f"**Description:** {candidate['definition']}")
+                    st.write(f"**Evidence:** {candidate['evidence'][:300]}...")
+                    st.caption(f"Reddit ID: {candidate['reddit_id']} | Flagged: {candidate['created_at']}")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("Approve", key=f"approve_{candidate['id']}"):
+                            mgr.create_emergent_code(
+                                candidate['name'],
+                                candidate['definition'],
+                                candidate['evidence'][:200],
+                            )
+                            update_emergent_candidate_status(candidate['id'], 'approved')
+                            save_codebook(mgr.to_dict(), session_id)
+                            st.success(f"✅ Approved {candidate['name']}")
+                            st.rerun()
+                    with col2:
+                        if st.button("Reject", key=f"reject_{candidate['id']}"):
+                            update_emergent_candidate_status(candidate['id'], 'rejected')
+                            st.success(f"❌ Rejected {candidate['name']}")
+                            st.rerun()
+        else:
+            st.info(
+                "No flagged candidates for this session. Use the 'Mixed' coding "
+                "approach in the Automated Coding module to discover new themes."
+            )
+
+    with tab_history:
+        history = load_emergent_candidates(session_id, status=None)
+        # Filter for non-pending items
+        history = [c for c in history if c['status'] != 'pending']
+        
+        if history:
+            for c in history:
+                status_color = "🟢" if c['status'] == 'approved' else "🔴"
+                with st.expander(f"{status_color} {c['name']} ({c['category']})"):
+                    st.write(f"**Status:** {c['status'].upper()}")
+                    st.write(f"**Definition:** {c['definition']}")
+                    st.write(f"**Evidence:** {c['evidence'][:200]}...")
+                    st.caption(f"Flagged: {c['created_at']}")
+        else:
+            st.caption("No history recorded for this session yet.")
 
 
 # ---------------------------------------------------------------------------

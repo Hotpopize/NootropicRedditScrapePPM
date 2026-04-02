@@ -65,7 +65,28 @@ from datetime import datetime
 
 from modules import ollama_client as ollama
 from modules.codebook import CodebookManager, CodeCategory, CODING_RULES
-from utils.db_helpers import load_codebook, log_action, save_coded_data
+from utils.db_helpers import load_codebook, log_action, save_coded_data, save_emergent_candidate
+from utils.model_setup import validate_models
+
+
+# ---------------------------------------------------------------------------
+# Deferred Connectivity Helpers
+# ---------------------------------------------------------------------------
+
+def ensure_ollama_ready():
+    """
+    Perform a full Ollama health check only once per browser session.
+    Stores results in st.session_state.ollama_status for the sidebar badge.
+    """
+    if 'ollama_status' not in st.session_state:
+        with st.status("📡 Checking Ollama connectivity...", expanded=False) as status:
+            report = validate_models(auto_pull=False)
+            st.session_state.ollama_status = report
+            if report['status'] == 'ok':
+                status.update(label="Ollama Ready", state="complete")
+            else:
+                status.update(label="Ollama Check Failed", state="error")
+    return st.session_state.ollama_status
 
 
 # ---------------------------------------------------------------------------
@@ -75,6 +96,9 @@ from utils.db_helpers import load_codebook, log_action, save_coded_data
 def render():
     st.header("Automated Qualitative Coding 🤖")
 
+    # Trigger deferred health check
+    ollama_report = ensure_ollama_ready()
+
     st.info(
         "This module uses **local computational models via Ollama** to ensure "
         "academic replicability and data privacy.\n\n"
@@ -82,8 +106,7 @@ def render():
         "one model pulled (e.g. `ollama pull llama3.1`)."
     )
 
-    # --- Connectivity checks ---
-    if not ollama.is_ollama_running():
+    if not ollama_report['ollama_running']:
         st.error(
             "⚠️ **Ollama is not reachable.** "
             "Please ensure Ollama is running on localhost:11434."
@@ -91,6 +114,12 @@ def render():
         st.code("ollama serve", language="bash")
         return
 
+    if ollama_report['missing_models']:
+        st.warning(f"⚠️ **Missing models:** {', '.join(ollama_report['missing_models'])}")
+        st.info("Pull missing models in your terminal or via the sidebar installer (if available).")
+        # Note: sidebar installer was removed in the app.py refactor for simplicity,
+        # but we could restore it here if needed.
+    
     available_models = ollama.get_available_models()
     if not available_models:
         st.warning("⚠️ **No models found.** Pull a model from your terminal first.")
@@ -119,9 +148,9 @@ def render():
     # -----------------------------------------------------------------------
     st.subheader("⚙️ Coding Configuration")
 
-    col1, col2 = st.columns(2)
+    col_cfg1, col_cfg2 = st.columns(2)
 
-    with col1:
+    with col_cfg1:
         coding_approach = st.selectbox(
             "Coding Approach",
             [
@@ -129,6 +158,11 @@ def render():
                 "Inductive (Emergent Themes Only)",
                 "Mixed (PPM + Emergent Themes)",
             ],
+            help=(
+                "**Deductive**: Strictly uses the 31 pre-defined PPM codes.\n\n"
+                "**Mixed**: Allows the model to flag 'Emergent' themes that don't fit "
+                "the existing codebook, which you can later review and approve."
+            )
         )
 
         # Preferred thesis models first, then everything else alphabetically
@@ -142,13 +176,11 @@ def render():
             "Local Computational Model",
             available_models,
             index=default_index,
-            help=(
-                "Models shown in order of preference for this thesis. "
-                "llama3.1 and gemma3:12b are the validated thesis models."
-            ),
+            help="Select your local model. Higher param models are smarter but slower.",
         )
+        st.caption("Recommended: `llama3.1` (8B) or `gemma3:12b`")
 
-    with col2:
+    with col_cfg2:
         batch_size = st.number_input(
             "Batch Size",
             min_value=1,
@@ -348,6 +380,17 @@ def render():
                         'raw_prompt':      prompt,
                         'raw_response':    raw_response,
                     }
+
+                # --- Emergent Themes Persistence ---
+                if coding_data.get('emergent_themes'):
+                    for theme in coding_data['emergent_themes']:
+                        save_emergent_candidate({
+                            'category': 'Mixed' if coding_approach == "Mixed (PPM + Emergent Themes)" else 'Inductive',
+                            'name': theme,
+                            'definition': coding_data.get('rationale', 'Proposed via LLM'),
+                            'evidence': str(coding_data.get('evidence_quotes', [])),
+                            'reddit_id': item.get('id'),
+                        }, st.session_state.session_id)
 
                 coded_results.append(coded_item)
                 consecutive_errors = 0  # reset on any successful response

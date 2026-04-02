@@ -72,7 +72,10 @@ def render():
             "Thesis subreddits to collect",
             options=THESIS_SUBREDDITS,
             default=THESIS_SUBREDDITS,
-            help="Deselect subreddits you've already collected to run incrementally.",
+            help=(
+                "These 5 subreddits represent the core of the nootropics community. "
+                "You can deselect specific ones to run a targeted collection."
+            ),
             key="thesis_sub_select",
         )
         collection_method = "Top Posts (Time Period)"
@@ -168,6 +171,11 @@ def render():
                     "Collection Method",
                     ["Recent Posts (Hot)", "Recent Posts (New)",
                      "Top Posts (Time Period)", "Search Query"],
+                     help=(
+                         "**Hot**: Trending recently.\n\n"
+                         "**New**: The most recent posts chronologically.\n\n"
+                         "**Top**: Most upvoted in the selected period (best for consensus themes)."
+                     )
                 )
 
                 if collection_method == "Top Posts (Time Period)":
@@ -181,7 +189,7 @@ def render():
                 limit = st.number_input(
                     "Posts per Subreddit",
                     min_value=1, max_value=1000, value=100,
-                    help="Reddit API limits apply",
+                    help="Max number of items to fetch per community. Higher limits increase collection time.",
                 )
 
                 use_json_mode_comments = (
@@ -230,17 +238,17 @@ def render():
             with col4:
                 flag_non_english = st.checkbox(
                     "Flag Non-English Content", value=True,
-                    help="Detect and flag likely non-English posts",
+                    help="Detects and flags likely non-English posts for easier exclusion during analysis.",
                 )
                 max_text_length = st.number_input(
                     "Max Text Length (chars)",
                     min_value=1000, max_value=100000, value=50000,
-                    help="Truncate very long posts to this length",
+                    help="Very long posts (e.g. detailed 'stack' guides) will be truncated.",
                 )
                 min_word_count_val = st.number_input(
                     "Min Word Count",
                     min_value=0, max_value=1000, value=0,
-                    help="Filter out posts shorter than this",
+                    help="Filters out short or low-substance posts (e.g., 'thank you').",
                 )
 
             # --- Zotero keywords (only when thesis mode is OFF) ---

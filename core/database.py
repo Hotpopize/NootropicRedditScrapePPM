@@ -73,24 +73,23 @@ class CollectedData(Base):
     """Raw Reddit posts and comments collected via PRAW or JSON endpoint."""
     __tablename__ = 'collected_data'
 
-    id           = Column(Integer, primary_key=True, autoincrement=True)
-    reddit_id    = Column(String,  unique=True, index=True, nullable=False)
-    type         = Column(String)               # 'submission' | 'comment'
-    subreddit    = Column(String,  index=True)
-    title        = Column(Text)
-    text         = Column(Text)
-    author       = Column(String)
-    score        = Column(Integer)
-    created_utc  = Column(Float)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    reddit_id = Column(String, unique=True, index=True, nullable=False)
+    type = Column(String)  # 'submission' | 'comment'
+    subreddit = Column(String, index=True)
+    title = Column(Text)
+    text = Column(Text)
+    author = Column(String)
+    score = Column(Integer)
+    created_utc = Column(Float)
     num_comments = Column(Integer, nullable=True)
-    url          = Column(Text,    nullable=True)
-    permalink    = Column(Text)
-    post_id      = Column(String,  nullable=True, index=True)
+    url = Column(Text, nullable=True)
+    permalink = Column(Text)
+    post_id = Column(String, nullable=True, index=True)
     collected_at = Column(DateTime, default=datetime.utcnow)
-    session_id   = Column(String,  index=True)
-    data_source  = Column(String,  nullable=True, default='praw')
-    # data_source values: 'praw' | 'json_endpoint'
-    # nullable=True retained for backward compat; load_collected_data coalesces NULL -> 'praw'
+    session_id = Column(String, index=True)
+    data_source = Column(String, nullable=True, default='praw')
+    # Use JSON for flexible metadata storage
     extra_metadata = Column(JSON, nullable=True)
 
 
@@ -98,34 +97,34 @@ class CodedData(Base):
     """LLM-assisted PPM coding results per Reddit item."""
     __tablename__ = 'coded_data'
 
-    id              = Column(Integer, primary_key=True, autoincrement=True)
-    reddit_id       = Column(String, index=True)
-    ppm_category    = Column(String, index=True)
-    ppm_subcodes    = Column(JSON)
-    themes          = Column(JSON)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    reddit_id = Column(String, index=True)
+    ppm_category = Column(String, index=True)
+    ppm_subcodes = Column(JSON)
+    themes = Column(JSON)
     evidence_quotes = Column(JSON)
-    confidence      = Column(String)
-    coded_at        = Column(DateTime, default=datetime.utcnow)
-    coded_by        = Column(String)    # 'llm:llama3.1' | 'llm:gemma3:12b' | 'human'
+    confidence = Column(String)
+    coded_at = Column(DateTime, default=datetime.utcnow)
+    coded_by = Column(String)  # 'llm:llama3.1' | 'llm:gemma3:12b' | 'human'
     coding_approach = Column(String)
-    session_id      = Column(String, index=True)
-    rationale       = Column(Text, nullable=True)
-    raw_prompt      = Column(Text, nullable=True)
-    raw_response    = Column(Text, nullable=True)
-    extra_metadata  = Column(JSON, nullable=True)
+    session_id = Column(String, index=True)
+    rationale = Column(Text, nullable=True)
+    raw_prompt = Column(Text, nullable=True)
+    raw_response = Column(Text, nullable=True)
+    extra_metadata = Column(JSON, nullable=True)
 
 
 class Codebook(Base):
     """PPM codebook — PUSH/PULL/MOOR-F/MOOR-I/EMER code definitions."""
     __tablename__ = 'codebook'
 
-    id         = Column(Integer, primary_key=True, autoincrement=True)
-    category   = Column(String, index=True)
-    name       = Column(String, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    category = Column(String, index=True)
+    name = Column(String, index=True)
     definition = Column(Text)
-    examples   = Column(Text, nullable=True)
-    frequency  = Column(Integer, default=0)
-    added_at   = Column(DateTime, default=datetime.utcnow)
+    examples = Column(Text, nullable=True)
+    frequency = Column(Integer, default=0)
+    added_at = Column(DateTime, default=datetime.utcnow)
     session_id = Column(String, index=True)
     extra_metadata = Column(JSON, nullable=True)
 
@@ -134,17 +133,17 @@ class ScrapeRun(Base):
     """One record per background collection job — tracks status and item count."""
     __tablename__ = 'scrape_runs'
 
-    id              = Column(Integer, primary_key=True, autoincrement=True)
-    job_id          = Column(String, unique=True, index=True)
-    status          = Column(String, index=True)   # RUNNING|COMPLETED|FAILED|CANCELLED
-    config_hash     = Column(String, index=True)
-    started_at      = Column(DateTime, default=datetime.utcnow)
-    completed_at    = Column(DateTime, nullable=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    job_id = Column(String, unique=True, index=True)
+    status = Column(String, index=True)  # RUNNING|COMPLETED|FAILED|CANCELLED
+    config_hash = Column(String, index=True)
+    started_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
     items_collected = Column(Integer, default=0)
-    error_message   = Column(Text, nullable=True)
-    session_id      = Column(String, index=True, nullable=True)
-    parameters      = Column(JSON)
-    extra_metadata  = Column(JSON, nullable=True)
+    error_message = Column(Text, nullable=True)
+    session_id = Column(String, index=True, nullable=True)
+    parameters = Column(JSON)
+    extra_metadata = Column(JSON, nullable=True)
 
 # ---------------------------------------------------------------------------
 # Compliance models — audit trail
@@ -157,12 +156,12 @@ class AuditLog(Base):
     """
     __tablename__ = 'audit_log'
 
-    id         = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp  = Column(DateTime, default=datetime.utcnow, index=True)
-    action     = Column(String, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    action = Column(String, index=True)
     session_id = Column(String, index=True)
-    user_info  = Column(String, nullable=True)
-    details    = Column(JSON)
+    user_info = Column(String, nullable=True)
+    details = Column(JSON)
     extra_metadata = Column(JSON, nullable=True)
 
 
@@ -174,15 +173,15 @@ class ReplicabilityLog(Base):
     """
     __tablename__ = 'replicability_log'
 
-    id               = Column(Integer, primary_key=True, autoincrement=True)
-    collection_hash  = Column(String, unique=True, index=True)
-    timestamp        = Column(DateTime, default=datetime.utcnow)
-    session_id       = Column(String, index=True)
-    parameters       = Column(JSON)     # includes data_source field
-    statistics       = Column(JSON)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    collection_hash = Column(String, unique=True, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    session_id = Column(String, index=True)
+    parameters = Column(JSON)  # includes data_source field
+    statistics = Column(JSON)
     rate_limit_events = Column(JSON, nullable=True)
     validation_results = Column(JSON, nullable=True)
-    notes            = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
 
 # ---------------------------------------------------------------------------
 # Inactive models — Zotero integration (future)
@@ -192,21 +191,21 @@ class ZoteroReference(Base):
     """Synced Zotero citation records. Not used in core thesis pipeline."""
     __tablename__ = 'zotero_references'
 
-    id           = Column(Integer, primary_key=True, autoincrement=True)
-    zotero_key   = Column(String, unique=True, index=True)
-    item_type    = Column(String)
-    title        = Column(Text)
-    authors      = Column(JSON)
-    year         = Column(String, nullable=True)
-    abstract     = Column(Text, nullable=True)
-    doi          = Column(String, nullable=True, index=True)
-    url          = Column(Text, nullable=True)
-    tags         = Column(JSON)
-    collections  = Column(JSON)
-    keywords     = Column(JSON)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    zotero_key = Column(String, unique=True, index=True)
+    item_type = Column(String)
+    title = Column(Text)
+    authors = Column(JSON)
+    year = Column(String, nullable=True)
+    abstract = Column(Text, nullable=True)
+    doi = Column(String, nullable=True, index=True)
+    url = Column(Text, nullable=True)
+    tags = Column(JSON)
+    collections = Column(JSON)
+    keywords = Column(JSON)
     citation_apa = Column(Text, nullable=True)
-    synced_at    = Column(DateTime, default=datetime.utcnow)
-    session_id   = Column(String, index=True)
+    synced_at = Column(DateTime, default=datetime.utcnow)
+    session_id = Column(String, index=True)
     extra_metadata = Column(JSON, nullable=True)
 
 
@@ -223,6 +222,25 @@ class ZoteroCollectionLink(Base):
     linked_at        = Column(DateTime, default=datetime.utcnow)
     session_id       = Column(String, index=True)
     notes            = Column(Text, nullable=True)
+
+
+class EmergentCandidate(Base):
+    """
+    Temporary storage for candidate subcodes proposed by LLM during coding.
+    Persists the 'emergent queue' across browser refreshes.
+    """
+    __tablename__ = 'emergent_candidates'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    category = Column(String)  # Push/Pull/Mooring
+    name = Column(String)
+    definition = Column(Text)
+    evidence = Column(Text)
+    reddit_id = Column(String, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    session_id = Column(String, index=True)
+    status = Column(String, default='pending', index=True)  # pending, approved, rejected
+
 
 # ---------------------------------------------------------------------------
 # init_db — MUST remain below all model definitions

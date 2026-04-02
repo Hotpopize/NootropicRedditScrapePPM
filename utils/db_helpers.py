@@ -78,7 +78,7 @@ from core.database import (
     CollectedData, CodedData, Codebook,
     AuditLog, ReplicabilityLog,
     ZoteroReference, ZoteroCollectionLink,
-    ScrapeRun,
+    ScrapeRun, EmergentCandidate,
 )
 
 logger = logging.getLogger(__name__)
@@ -631,6 +631,112 @@ def load_audit_logs(session_id: str = None,
             }
             for r in results
         ]
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# EmergentCandidate — persistence for candidate subcodes
+# ---------------------------------------------------------------------------
+
+def save_emergent_candidate(candidate_dict: dict, session_id: str) -> bool:
+    """
+    Save a new emergent candidate proposed by the LLM.
+    Returns True if saved, False if a candidate with the same name already exists.
+    """
+    db = get_db_session()
+    try:
+        # Check for duplicates by name (simple deduplication for the queue)
+        existing = db.query(EmergentCandidate).filter_by(
+            name=candidate_dict.get('name'),
+            session_id=session_id
+        ).first()
+
+        if existing:
+            return False
+
+        candidate = EmergentCandidate(
+            category=candidate_dict.get('category'),
+            name=candidate_dict.get('name'),
+            definition=candidate_dict.get('definition'),
+            evidence=candidate_dict.get('evidence'),
+            reddit_id=candidate_dict.get('reddit_id'),
+            session_id=session_id,
+        )
+        db.add(candidate)
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def load_emergent_candidates(session_id: str = None, status: str = 'pending') -> list[dict]:
+    """
+    Load emergent candidates from the DB, filtered by session and status.
+    Isolating by session ensures researchers see themes relevant to 
+    specific collection runs (e.g. r/Decaf vs r/Biohackers).
+    """
+    db = get_db_session()
+    try:
+        query = db.query(EmergentCandidate)
+        if session_id:
+            query = query.filter_by(session_id=session_id)
+        if status:
+            query = query.filter_by(status=status)
+
+        results = query.order_by(EmergentCandidate.created_at.desc()).all()
+
+        return [
+            {
+                'id':         r.id,
+                'category':   r.category,
+                'name':       r.name,
+                'definition': r.definition,
+                'evidence':   r.evidence,
+                'reddit_id':  r.reddit_id,
+                'created_at': r.created_at.isoformat(),
+                'session_id': r.session_id,
+                'status':     r.status,
+            }
+            for r in results
+        ]
+    finally:
+        db.close()
+
+
+def update_emergent_candidate_status(candidate_id: int, new_status: str) -> bool:
+    """Update the status of an emergent candidate (e.g. to approved/rejected)."""
+    db = get_db_session()
+    try:
+        candidate = db.query(EmergentCandidate).filter_by(id=candidate_id).first()
+        if candidate:
+            candidate.status = new_status
+            db.commit()
+            return True
+        return False
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def delete_emergent_candidate(candidate_id: int) -> bool:
+    """Delete an emergent candidate by ID (e.g. after approval/rejection)."""
+    db = get_db_session()
+    try:
+        candidate = db.query(EmergentCandidate).filter_by(id=candidate_id).first()
+        if candidate:
+            db.delete(candidate)
+            db.commit()
+            return True
+        return False
+    except Exception as e:
+        db.rollback()
+        raise e
     finally:
         db.close()
 
