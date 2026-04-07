@@ -84,6 +84,9 @@ class JobManager:
     _jobs:                Dict[str, JobState]          = {}
     _threads:             Dict[str, threading.Thread]  = {}
     _cancellation_events: Dict[str, threading.Event]   = {}
+    
+    # 1. Add class-level thread lock for job creation synchronization
+    _job_lock = threading.Lock()
 
     @classmethod
     def start_job(cls, reddit_service: Any, params: CollectionParams) -> str:
@@ -103,149 +106,154 @@ class JobManager:
         Returns the job_id string. The caller stores this in
         st.session_state.scraping_job_id for the polling loop.
         """
-        job_id = str(uuid.uuid4())
+        # 2. Acquire lock before checking active count or creating job
+        with cls._job_lock:
+            if cls.active_job_count() > 0:
+                raise RuntimeError("Another processing job is already running.")
+            
+            job_id = str(uuid.uuid4())
 
-        cls._jobs[job_id] = JobState(
-            job_id     = job_id,
-            status     = JobStatus.PENDING,
-            started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        )
+            cls._jobs[job_id] = JobState(
+                job_id     = job_id,
+                status     = JobStatus.PENDING,
+                started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            )
 
-        cancel_event = threading.Event()
-        cls._cancellation_events[job_id] = cancel_event
+            cancel_event = threading.Event()
+            cls._cancellation_events[job_id] = cancel_event
 
-        def worker():
-            cls._jobs[job_id].status = JobStatus.RUNNING
+            def worker():
+                cls._jobs[job_id].status = JobStatus.RUNNING
 
-            # Compute config_hash BEFORE setting params.job_id so the hash
-            # reflects only the collection parameters, not the run UUID.
-            # See module docstring — changing this order breaks hash invariants.
-            config_hash = generate_collection_hash(params.model_dump())
-            params.job_id = job_id
+                # Compute config_hash BEFORE setting params.job_id so the hash
+                # reflects only the collection parameters, not the run UUID.
+                # See module docstring — changing this order breaks hash invariants.
+                config_hash = generate_collection_hash(params.model_dump())
+                params.job_id = job_id
 
-            # Attempt to create the ScrapeRun DB record.
-            # On failure: log the error and continue with collection — data
-            # will still be saved to collected_data via incremental saves.
-            # Set params.job_id = None so downstream update_scrape_run calls
-            # are skipped (no row to update) rather than raising silently.
-            try:
-                create_scrape_run(
-                    job_id      = job_id,
-                    config_hash = config_hash,
-                    parameters  = params.model_dump(),
-                    session_id  = params.session_id,
-                    label       = params.session_label,
-                )
-            except Exception as e:
-                logger.warning(
-                    "Failed to create ScrapeRun for job %s: %s — "
-                    "collection will proceed but job tracking is degraded.",
-                    job_id, e,
-                )
-                log_action(
-                    action     = 'job_init_failed',
-                    session_id = params.session_id,
-                    details    = {'job_id': job_id, 'error': str(e)},
-                )
-                # Disable downstream update_scrape_run calls — no row exists
-                params.job_id = None
-
-            generator = reddit_service.collect_data(params)
-
-            try:
-                for item in generator:
-                    # Cancellation is cooperative — checked at each iteration.
-                    # If the service is mid-request, cancel takes effect on the
-                    # next iteration (worst case: one full request cycle).
-                    if cancel_event.is_set():
-                        cls._jobs[job_id].status       = JobStatus.CANCELLED
-                        cls._jobs[job_id].completed_at = time.strftime(
-                            "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
-                        )
-                        if params.job_id:  # may be None if create_scrape_run failed
-                            update_scrape_run(job_id=job_id, status='CANCELLED')
-                        log_action(
-                            action     = 'job_cancelled',
-                            session_id = params.session_id,
-                            details    = {'job_id': job_id},
-                        )
-                        logger.info("Job %s cancelled.", job_id)
-                        return
-
-                    # Dispatch by duck-typing — job_manager does not import
-                    # CollectionProgress or CollectionResult directly to avoid
-                    # coupling. hasattr checks are the agreed protocol.
-                    if hasattr(item, 'progress_percentage'):
-                        # CollectionProgress — update UI-visible progress
-                        cls._jobs[job_id].progress = item
-
-                    elif hasattr(item, 'collection_hash'):
-                        # CollectionResult — final yield from the generator
-                        # NOTE: item.collected_posts is always [] (buffer was
-                        # cleared during incremental saves). Use
-                        # item.stats.total_collected for the item count.
-                        cls._jobs[job_id].result       = item
-                        cls._jobs[job_id].status       = JobStatus.COMPLETED
-                        cls._jobs[job_id].completed_at = time.strftime(
-                            "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
-                        )
-                        if params.job_id:
-                            update_scrape_run(
-                                job_id          = job_id,
-                                status          = 'COMPLETED',
-                                items_collected = item.stats.total_collected,
-                            )
-                        log_action(
-                            action     = 'job_completed',
-                            session_id = params.session_id,
-                            details    = {
-                                'job_id':          job_id,
-                                'items_collected': item.stats.total_collected,
-                                'collection_hash': item.collection_hash,
-                                'data_source':     getattr(params, 'data_source', 'unknown'),
-                            },
-                        )
-                        logger.info(
-                            "Job %s completed — %d items collected.",
-                            job_id, item.stats.total_collected,
-                        )
-
-                    else:
-                        # Unknown yield type — log and skip rather than silently ignore
-                        logger.warning(
-                            "Job %s: generator yielded unknown type %s — skipped.",
-                            job_id, type(item).__name__,
-                        )
-
-            except Exception as e:
-                cls._jobs[job_id].status       = JobStatus.FAILED
-                cls._jobs[job_id].error        = str(e)
-                cls._jobs[job_id].completed_at = time.strftime(
-                    "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
-                )
-                if params.job_id:
-                    update_scrape_run(
-                        job_id        = job_id,
-                        status        = 'FAILED',
-                        error_message = str(e),
+                # Attempt to create the ScrapeRun DB record.
+                # On failure: log the error and continue with collection — data
+                # will still be saved to collected_data via incremental saves.
+                # Set params.job_id = None so downstream update_scrape_run calls
+                # are skipped (no row to update) rather than raising silently.
+                try:
+                    create_scrape_run(
+                        job_id      = job_id,
+                        config_hash = config_hash,
+                        parameters  = params.model_dump(),
+                        session_id  = params.session_id,
+                        label       = params.session_label,
                     )
-                log_action(
-                    action     = 'job_crash',
-                    session_id = params.session_id,
-                    details    = {'job_id': job_id, 'error': str(e)},
-                )
-                logger.exception("Job %s crashed: %s", job_id, e)
+                except Exception as e:
+                    logger.warning(
+                        "Failed to create ScrapeRun for job %s: %s — "
+                        "collection will proceed but job tracking is degraded.",
+                        job_id, e,
+                    )
+                    log_action(
+                        action     = 'job_init_failed',
+                        session_id = params.session_id,
+                        details    = {'job_id': job_id, 'error': str(e)},
+                    )
+                    # Disable downstream update_scrape_run calls — no row exists
+                    params.job_id = None
 
-        thread = threading.Thread(
-            target = worker,
-            daemon = True,        # dies with the process — no cleanup needed
-            name   = f"ScrapeJob-{job_id}",
-        )
-        cls._threads[job_id] = thread
-        thread.start()
-        logger.info("Job %s started (thread: %s).", job_id, thread.name)
+                generator = reddit_service.collect_data(params)
 
-        return job_id
+                try:
+                    for item in generator:
+                        # Cancellation is cooperative — checked at each iteration.
+                        # If the service is mid-request, cancel takes effect on the
+                        # next iteration (worst case: one full request cycle).
+                        if cancel_event.is_set():
+                            cls._jobs[job_id].status       = JobStatus.CANCELLED
+                            cls._jobs[job_id].completed_at = time.strftime(
+                                "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+                            )
+                            if params.job_id:  # may be None if create_scrape_run failed
+                                update_scrape_run(job_id=job_id, status='CANCELLED')
+                            log_action(
+                                action     = 'job_cancelled',
+                                session_id = params.session_id,
+                                details    = {'job_id': job_id},
+                            )
+                            logger.info("Job %s cancelled.", job_id)
+                            return
+
+                        # Dispatch by duck-typing — job_manager does not import
+                        # CollectionProgress or CollectionResult directly to avoid
+                        # coupling. hasattr checks are the agreed protocol.
+                        if hasattr(item, 'progress_percentage'):
+                            # CollectionProgress — update UI-visible progress
+                            cls._jobs[job_id].progress = item
+
+                        elif hasattr(item, 'collection_hash'):
+                            # CollectionResult — final yield from the generator
+                            # NOTE: item.collected_posts is always [] (buffer was
+                            # cleared during incremental saves). Use
+                            # item.stats.total_collected for the item count.
+                            cls._jobs[job_id].result       = item
+                            cls._jobs[job_id].status       = JobStatus.COMPLETED
+                            cls._jobs[job_id].completed_at = time.strftime(
+                                "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+                            )
+                            if params.job_id:
+                                update_scrape_run(
+                                    job_id          = job_id,
+                                    status          = 'COMPLETED',
+                                    items_collected = item.stats.total_collected,
+                                )
+                            log_action(
+                                action     = 'job_completed',
+                                session_id = params.session_id,
+                                details    = {
+                                    'job_id':          job_id,
+                                    'items_collected': item.stats.total_collected,
+                                    'collection_hash': item.collection_hash,
+                                    'data_source':     getattr(params, 'data_source', 'unknown'),
+                                },
+                            )
+                            logger.info(
+                                "Job %s completed — %d items collected.",
+                                job_id, item.stats.total_collected,
+                            )
+
+                        else:
+                            # Unknown yield type — log and skip rather than silently ignore
+                            logger.warning(
+                                "Job %s: generator yielded unknown type %s — skipped.",
+                                job_id, type(item).__name__,
+                            )
+
+                except Exception as e:
+                    cls._jobs[job_id].status       = JobStatus.FAILED
+                    cls._jobs[job_id].error        = str(e)
+                    cls._jobs[job_id].completed_at = time.strftime(
+                        "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+                    )
+                    if params.job_id:
+                        update_scrape_run(
+                            job_id        = job_id,
+                            status        = 'FAILED',
+                            error_message = str(e),
+                        )
+                    log_action(
+                        action     = 'job_crash',
+                        session_id = params.session_id,
+                        details    = {'job_id': job_id, 'error': str(e)},
+                    )
+                    logger.exception("Job %s crashed: %s", job_id, e)
+
+            thread = threading.Thread(
+                target = worker,
+                daemon = True,        # dies with the process — no cleanup needed
+                name   = f"ScrapeJob-{job_id}",
+            )
+            cls._threads[job_id] = thread
+            thread.start()
+            logger.info("Job %s started (thread: %s).", job_id, thread.name)
+
+            return job_id
 
     @classmethod
     def get_job(cls, job_id: str) -> JobState | None:
