@@ -48,7 +48,10 @@ if not DATABASE_URL:
     DATABASE_URL = "sqlite:///data/research_data.db"
     engine = create_engine(
         DATABASE_URL,
-        connect_args={'check_same_thread': False},
+        connect_args={
+            'check_same_thread': False, 
+            'timeout': 15  # FIX: Allow SQLite to queue connections for 15s before throwing locked error
+        },
         pool_pre_ping=True
     )
 else:
