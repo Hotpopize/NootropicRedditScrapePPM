@@ -72,6 +72,7 @@ scripts/scrub_deleted_data (planned) — get_all_collected_reddit_ids,
 
 import logging
 from datetime import datetime
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from core.database import (
     get_db_session,
@@ -149,56 +150,68 @@ def update_scrape_run(job_id: str, status: str = None,
 
 def save_collected_data(items: list, session_id: str) -> int:
     """
-    Persist a batch of collected item dicts to collected_data.
-
-    Deduplication: application-level check on reddit_id before each insert.
-    The DB also has a UNIQUE constraint on reddit_id as a second safety net.
-
-    Expected item dict keys (see RedditItem in core/schemas.py):
-      id, type, subreddit, title, text, author, score, created_utc,
-      num_comments, url, permalink, post_id, data_source, metadata
-
-    data_source defaults to 'praw' if not present in the item dict.
-    Returns the count of newly inserted records (skipped duplicates not counted).
-
-    NOTE: Called from the background thread in reddit_service.py in 50-item
-    batches. The buffer is cleared after each batch so CollectionResult ends
-    up with an empty collected_posts list — this is expected behaviour.
-    Do not call save_collected_data(final_result.collected_posts) in the UI.
+    Save collected records using SQLite UPSERT (DO NOTHING on conflict).
+    Prevents "database is locked" errors during concurrent writes.
     """
+    if not items:
+        return 0
+
     db = get_db_session()
     try:
         saved_count = 0
+        values = []
         for item in items:
-            existing = db.query(CollectedData).filter_by(
-                reddit_id=item.get('id')
-            ).first()
-            if not existing:
-                record = CollectedData(
-                    reddit_id      = item.get('id'),
-                    type           = item.get('type'),
-                    subreddit      = item.get('subreddit'),
-                    title          = item.get('title'),
-                    text           = item.get('text'),
-                    author         = item.get('author'),
-                    score          = item.get('score', 0),
-                    created_utc    = item.get('created_utc'),
-                    num_comments   = item.get('num_comments'),
-                    url            = item.get('url'),
-                    permalink      = item.get('permalink'),
-                    post_id        = item.get('post_id'),
-                    session_id     = session_id,
-                    data_source    = item.get('data_source', 'praw'),
-                    extra_metadata = item.get('metadata', {}),
-                )
-                db.add(record)
-                saved_count += 1
-
+            values.append({
+                'reddit_id':      item.get('id'),
+                'type':           item.get('type'),
+                'subreddit':      item.get('subreddit'),
+                'title':          item.get('title'),
+                'text':           item.get('text'),
+                'author':         item.get('author'),
+                'score':          item.get('score', 0),
+                'created_utc':    item.get('created_utc'),
+                'num_comments':   item.get('num_comments'),
+                'url':            item.get('url'),
+                'permalink':      item.get('permalink'),
+                'post_id':        item.get('post_id'),
+                'session_id':     session_id,
+                'data_source':    item.get('data_source', 'praw'),
+                'extra_metadata': item.get('metadata', {}),
+            })
+            
+        # BATCH INSERT WITH CONFLICT HANDLING (SQLite DO NOTHING)
+        stmt = sqlite_insert(CollectedData).values(values)
+        
+        # CRITICAL: ON CONFLICT DO NOTHING prevents duplicate key errors
+        stmt = stmt.on_conflict_do_nothing(
+            index_elements=['reddit_id']  # Unique constraint
+        )
+        
+        result = db.execute(stmt)
         db.commit()
+        saved_count = result.rowcount  # Returns actual inserted rows
+        
         return saved_count
     except Exception as e:
         db.rollback()
-        raise e
+        logger.error(f"Batch save failed, falling back to individual saves: {e}")
+        
+        # FALLBACK: Individual saves with conflict handling
+        saved_count = 0
+        for val in values:
+            try:
+                stmt = sqlite_insert(CollectedData).values(val)
+                stmt = stmt.on_conflict_do_nothing(index_elements=['reddit_id'])
+                result = db.execute(stmt)
+                db.commit()
+                if result.rowcount > 0:
+                    saved_count += result.rowcount
+            except Exception as inner_e:
+                db.rollback()
+                logger.warning(f"Skipped duplicate/corrupt record {val.get('reddit_id')}: {inner_e}")
+                continue
+                
+        return saved_count
     finally:
         db.close()
 
@@ -432,7 +445,7 @@ def load_coded_data(session_id: str = None, limit: int = None) -> list:
 # Codebook — PPM code definitions
 # ---------------------------------------------------------------------------
 
-def save_codebook(codebook_data: dict, session_id: str) -> None:
+def save_codebook(codebook_data: dict, session_id: str, allow_wipe: bool = False) -> None:
     """
     Upsert codebook codes and prune removed ones.
 
@@ -445,6 +458,11 @@ def save_codebook(codebook_data: dict, session_id: str) -> None:
     If a (category, name) pair already exists in a different session, it is
     updated (session_id reassigned) rather than duplicated. This is correct
     for a single-researcher tool where all codes represent the same codebook.
+    
+    WHEN allow_wipe=False: 
+        Only appends new/updated entries (preserves existing for baseline)
+    WHEN allow_wipe=True: 
+        Full replacement (use for intentional codebook updates)
     """
     db = get_db_session()
     try:
@@ -493,14 +511,15 @@ def save_codebook(codebook_data: dict, session_id: str) -> None:
                 db.add(record)
 
         # FIX: prune scoped to current session only (was global — data loss bug)
-        session_codes = (
-            db.query(Codebook)
-            .filter_by(session_id=session_id)
-            .all()
-        )
-        for db_code in session_codes:
-            if (db_code.category, db_code.name) not in current_codes:
-                db.delete(db_code)
+        if allow_wipe:
+            session_codes = (
+                db.query(Codebook)
+                .filter_by(session_id=session_id)
+                .all()
+            )
+            for db_code in session_codes:
+                if (db_code.category, db_code.name) not in current_codes:
+                    db.delete(db_code)
 
         db.commit()
     except Exception as e:

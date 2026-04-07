@@ -176,56 +176,25 @@ def generate_collection_hash(params_dict):
 
 class RedditService:
     def __init__(self, credentials: RedditCredentials):
-        final_user_agent = credentials.user_agent
-        if "AcademicResearch" not in final_user_agent and len(final_user_agent) < 10:
-            final_user_agent = "AcademicResearch:NootropicRedditScrapePPM:v1.0 (by /u/unknown)"
-
-        self.reddit = praw.Reddit(
-            client_id=credentials.client_id,
-            client_secret=credentials.client_secret,
-            user_agent=final_user_agent
-        )
+        # Store credentials for use inside threads instead of instantiating praw.Reddit here
+        self.credentials = credentials
         config = RateLimitConfig()
         self.rate_limiter = RateLimiter(requests_per_minute=config.requests_per_minute)
 
-    @reddit_retry
-    def _fetch_comments_with_retry(self, post, limit: int):
-        """Fetch comments with rate limiting."""
-        self.rate_limiter.wait()
-        post.comments.replace_more(limit=0)
-        return post.comments.list()[:limit]
-
-    @reddit_retry
-    def _get_subreddit(self, name: str):
-        """Fetch subreddit with retry protection."""
-        self.rate_limiter.wait()
-        sub = self.reddit.subreddit(name)
-        _ = sub.id  # Force API call within retry scope
-        return sub
-
-    @reddit_retry
-    def _fetch_posts(self, subreddit, method: str, limit: int, time_filter: str = "week", query: str = None) -> list:
-        """Fetch posts with rate limiting and retry."""
-        self.rate_limiter.wait()
-        
-        if method == "hot":
-            return list(subreddit.hot(limit=limit))
-        elif method == "new":
-            return list(subreddit.new(limit=limit))
-        elif method == "top":
-            return list(subreddit.top(time_filter=time_filter, limit=limit))
-        elif method == "search":
-            if query and query.strip():
-                return list(subreddit.search(query, limit=limit))
-            else:
-                logger.warning("Search filter requested but empty query provided for r/%s — falling back to 'hot'.", subreddit.display_name)
-                return list(subreddit.hot(limit=limit))
-        return list(subreddit.hot(limit=limit))
-
     def verify_credentials(self) -> bool:
         try:
-            self.reddit.read_only = True
-            _ = self.reddit.user.me() if not self.reddit.read_only else self.reddit.random_subreddit()
+            final_user_agent = self.credentials.user_agent
+            if "AcademicResearch" not in final_user_agent and len(final_user_agent) < 10:
+                final_user_agent = "AcademicResearch:NootropicRedditScrapePPM:v1.0 (by /u/unknown)"
+
+            # Local PRAW instance just for verification
+            reddit = praw.Reddit(
+                client_id=self.credentials.client_id,
+                client_secret=self.credentials.client_secret,
+                user_agent=final_user_agent
+            )
+            reddit.read_only = True
+            _ = reddit.user.me() if not reddit.read_only else reddit.random_subreddit()
             return True
         except prawcore.exceptions.OAuthException as e:
             logger.error("Reddit authentication failed (OAuthException): %s", e)
@@ -238,6 +207,51 @@ class RedditService:
             return False
 
     def collect_data(self, params: CollectionParams) -> Generator[Union[CollectionProgress, CollectionResult], None, None]:
+        # CREATE REDDIT INSTANCE INSIDE WORKER THREAD FOR THREAD ISOLATION
+        final_user_agent = self.credentials.user_agent
+        if "AcademicResearch" not in final_user_agent and len(final_user_agent) < 10:
+            final_user_agent = "AcademicResearch:NootropicRedditScrapePPM:v1.0 (by /u/unknown)"
+        
+        reddit = praw.Reddit(
+            client_id=self.credentials.client_id,
+            client_secret=self.credentials.client_secret,
+            user_agent=final_user_agent
+        )
+
+        @reddit_retry
+        def _fetch_comments_with_retry(post, limit: int):
+            """Fetch comments with rate limiting."""
+            self.rate_limiter.wait()
+            post.comments.replace_more(limit=0)
+            return post.comments.list()[:limit]
+
+        @reddit_retry
+        def _get_subreddit(name: str):
+            """Fetch subreddit with retry protection."""
+            self.rate_limiter.wait()
+            sub = reddit.subreddit(name)  # USE LOCAL REDDIT INSTANCE
+            _ = sub.id  # Force API call within retry scope
+            return sub
+
+        @reddit_retry
+        def _fetch_posts(subreddit, method: str, limit: int, time_filter: str = "week", query: str = None) -> list:
+            """Fetch posts with rate limiting and retry."""
+            self.rate_limiter.wait()
+            
+            if method == "hot":
+                return list(subreddit.hot(limit=limit))
+            elif method == "new":
+                return list(subreddit.new(limit=limit))
+            elif method == "top":
+                return list(subreddit.top(time_filter=time_filter, limit=limit))
+            elif method == "search":
+                if query and query.strip():
+                    return list(subreddit.search(query, limit=limit))
+                else:
+                    logger.warning("Search filter requested but empty query provided for r/%s — falling back to 'hot'.", subreddit.display_name)
+                    return list(subreddit.hot(limit=limit))
+            return list(subreddit.hot(limit=limit))
+
         if not params.collection_started:
             params.collection_started = datetime.utcnow().isoformat()
 
@@ -260,7 +274,7 @@ class RedditService:
             )
 
             try:
-                subreddit = self._get_subreddit(subreddit_name)
+                subreddit = _get_subreddit(subreddit_name)
                 subreddit_nsfw = getattr(subreddit, 'over18', False)
 
                 if subreddit_nsfw and not params.include_nsfw:
@@ -275,7 +289,7 @@ class RedditService:
                 }
                 method = method_map.get(params.method, "hot")
 
-                posts = self._fetch_posts(
+                posts = _fetch_posts(
                     subreddit,
                     method=method,
                     limit=params.limit,
