@@ -49,3 +49,9 @@
 - **UI / Sidebar Session Status**: The active session label (or timestamp) is now pinned to the sidebar for better researcher awareness.
 - **Audit / Session Actions**: Rewrote the session action logic to query from the `ScrapeRun` table; added functional Rename and Delete. (Fixes B3/B4)
 - **Methodology / GPT-5 Reference**: Removed stale references to GPT-5 in the methodology export; updated to reflect local Ollama (llama3.1/gemma3) processing.
+
+## ✅ Done in April 2026
+
+- **Security / Job Manager**: Implemented `threading.Lock` and active job count validation in `services/job_manager.py` to prevent Background Job Manager Collision race conditions.
+- **Security / DB Concurrency**: Increased SQLite timeout in `core/database.py` to 15 seconds to gracefully handle batch LLM processing write locks.
+- **Security / Thread Isolation**: Refactored `praw.Reddit` instantiation into the `collect_data` generator for safe thread isolation, and introduced defensive UPSERT (`ON CONFLICT DO NOTHING`) with an `allow_wipe` codebook safety mechanism in `utils/db_helpers.py` to prevent data corruption.
