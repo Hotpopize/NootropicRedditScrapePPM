@@ -1,14 +1,13 @@
 cff-version: 1.2.0
 message: "If you use this software or data, please cite it as below."
-title: "Caffeine to Brain Boosts: Using Online Communities to Understand the Nootropics Market."
+title: "Caffeine to Brain Boosts: A Qualitative Research Instrument for Nootropic Discourse Analysis"
 type: software
 authors:
-  - family-names: "Researcher"
-    given-names: "Hotpopize"
-    affiliation: "University"
-    orcid: "https://orcid.org/0000-0000-0000-0000"
+  - family-names: "Dolgov"
+    given-names: "Vladislav"
+    affiliation: "Modul University Vienna"
 version: "1.0.0"
-date-released: "2025-12-02"
+date-released: "2026-04-09"
 license: MIT
 repository-code: "https://github.com/Hotpopize/NootropicRedditScrapePPM"
 url: "https://github.com/Hotpopize/NootropicRedditScrapePPM"

@@ -1,45 +1,68 @@
-# Caffeine to Brain Boosts: Using Online Communities to Understand the Nootropics Market.
+# Caffeine to Brain Boosts: A Qualitative Research Instrument for Nootropic Discourse Analysis
 
-This repository contains a specialized software tool designed to support qualitative academic research by combining programmatic data collection with automated thematic text analysis. It facilitates the systematic collection of Reddit discussions and utilizes local Large Language Models (LLMs) to securely code qualitative data according to the Push-Pull-Mooring (PPM) framework.
+This repository contains a specialized research instrument developed as part of a Master's Thesis at **Modul University Vienna**. It is designed as a tool for netnography and a supporting tool for qualitative academic research, combining systematic social media data collection with automated thematic text analysis.
 
-By prioritizing academic rigor and data privacy, all computational analysis is executed locally without transmitting sensitive research data to external APIs. The application features a streamlined pipeline from data acquisition to codebook management, culminating in an interactive dashboard for rapid visualization of qualitative coding themes.
+**Researcher**: Vladislav Dolgov  
+**Supervisor**: Dr. Oliver Nixon  
+**Institution**: Modul University Vienna  
+**Agreement**: Developed in accordance with the *Reddit Research Data Addendum* (Executed 2026-04-01).
 
-## Setup Instructions
+---
 
-Ensure you have Python 3.11+ and Ollama installed.
+## 🏛️ Project Overview
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/Hotpopize/NootropicRedditScrapePPM.git
-   cd NootropicRedditScrapePPM
-   ```
+This instrument facilitates the systematic study of cognitive supplement (nootropic) discourse. It implements the **Push-Pull-Mooring (PPM)** migration framework to understand why consumers transition from traditional stimulants (e.g., caffeine, prescription meds) to natural nootropic alternatives.
 
-2. **Install dependencies:**
-   ```bash
-   pip install -e .
-   ```
+The tool provides:
+- **Methodological Consistency**: Automated thematic coding based on established qualitative frameworks.
+- **Privacy-First Analysis**: Utilizes local Large Language Models (LLMs) to ensure research data never leaves the investigator's local environment.
+- **Transparency**: A full audit trail of collection parameters, replicability logs, and data quality metrics.
 
-3. **Launch the application:**
-   ```bash
-   streamlit run app.py
-   ```
+## ⚖️ Ethics & Compliance
 
-## Configuration
+This project is built on the principle of **Public Code, Private Data**. It adheres strictly to the Reddit Data API Terms of Service:
 
-Reddit API credentials are required. See SETUP.md for the Reddit4Researcher application process.
+- **Non-Commercial Use**: This software is an academic artifact and is governed by the [PolyForm Noncommercial 1.0.0 License](LICENSE).
+- **PII Protection**: Raw usernames are never stored in the analysis pipeline. All `author` fields are irreversibly pseudonymized using SHA256 hashing at the point of ingestion.
+- **Data Deletion Workflow**: Includes tools to check and remove content that has been deleted or removed from the source platform, ensuring the dataset remains compliant with right-to-be-forgotten requirements.
+- **No Redistribution**: This repository does **not** contain or redistribute real Reddit user data.
 
-## Quickstart (Try it without Reddit credentials!)
+## 🚀 Quickstart (Reviewer Demo)
 
-Because of strict PII and platform requirements, attempting to use the scraper without API credentials will fail. 
-
-However, you can test the **entire downstream qualitative analysis pipeline** using our provided `samples/synthetic_nootropics_sample.csv` (a 100% fabricated dataset simulating the Push-Pull-Mooring framework):
+Because this tool requires authenticated API access to collect live data, we provide a **100% synthetic dataset** to allow immediate evaluation of the analysis pipeline.
 
 ```bash
-# 1. Start the Streamlit application
+# 1. Install dependencies (requires Python 3.11+)
+pip install -e .
+
+# 2. Launch the research dashboard
 streamlit run app.py
 
-# 2. Open a separate terminal and import the synthetic sample dataset
+# 3. (In a separate terminal) Ingest the synthetic PPM sample
 python scripts/import_external_data.py samples/synthetic_nootropics_sample.csv --acknowledge-pii-scrubbing
 ```
 
-Now, open the dashboard. The dataset will exist under `External Import: synthetic_nootropics_sample.csv` where you can run the LLM Coder and Topic Modeler instantly!
+Once imported, the dashboard will display the `synthetic_nootropics_sample.csv` session, where you can test the **LLM Coder**, **Topic Modeler**, and **PPM Visualization** modules without needing Reddit API credentials.
+
+## ⚙️ Configuration
+
+For full research deployment (live data collection), please refer to the [Technical Setup Guide (SETUP.md)](SETUP.md) for instructions on:
+- Acquiring Reddit PRAW credentials.
+- Configuring local LLMs via Ollama.
+- Managing environment variables.
+
+---
+
+## 📖 Citation
+
+If you use this instrument or methodology in your research, please cite as follows:
+
+```bibtex
+@software{dolgov2026caffeine,
+  author = {Dolgov, Vladislav},
+  title = {Caffeine to Brain Boosts: A Qualitative Research Instrument for Nootropic Discourse Analysis},
+  institution = {Modul University Vienna},
+  year = {2026},
+  url = {https://github.com/Hotpopize/NootropicRedditScrapePPM}
+}
+```
