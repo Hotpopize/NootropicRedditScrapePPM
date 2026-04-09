@@ -43,6 +43,8 @@ attached_assets/
 # JSON (except config files)
 *.json
 !CITATION.cff
+!samples/*.csv
+!samples/*.json
 
 # Test/Coverage
 .pytest_cache/
