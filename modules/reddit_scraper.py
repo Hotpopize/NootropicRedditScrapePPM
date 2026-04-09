@@ -30,9 +30,6 @@ def render():
     )
     st.session_state.session_label = session_label
 
-    creds = st.session_state.get('reddit_credentials', {})
-    has_creds = bool(creds.get('client_id') and creds.get('client_secret'))
-
     st.caption("🔑 Collecting with Reddit API credentials")
 
     # ===================================================================
@@ -249,52 +246,7 @@ def render():
                     if st.button("Use as Search Query"):
                         st.session_state.zotero_search_query = suggested_query
 
-        # --- Reddit API Credentials ---
-        with st.expander("🔑 Reddit API Credentials (optional)", expanded=False):
-            client_id = st.text_input(
-                "Client ID", type="password",
-                help="Found under the app name",
-            )
-            client_secret = st.text_input(
-                "Client Secret", type="password",
-                help="The secret key shown",
-            )
-            user_agent = st.text_input(
-                "User Agent",
-                value="AcademicResearch:NootropicsStudy:v1.0 (by /u/YourUsername)",
-                help="Descriptive string identifying your app",
-            )
 
-            if st.button("Save API Credentials"):
-                st.session_state.reddit_credentials = {
-                    'client_id': client_id,
-                    'client_secret': client_secret,
-                    'user_agent': user_agent,
-                }
-                st.success("Credentials saved for this session")
-
-            if st.button("Verify Credentials"):
-                if 'reddit_credentials' not in st.session_state:
-                    st.error("Save credentials first")
-                else:
-                    try:
-                        from core.schemas import RedditCredentials
-                        from services.reddit_service import RedditService
-
-                        creds_data = st.session_state.reddit_credentials
-                        creds_obj = RedditCredentials(
-                            client_id=creds_data['client_id'],
-                            client_secret=creds_data['client_secret'],
-                            user_agent=creds_data['user_agent'],
-                        )
-                        service = RedditService(creds_obj)
-
-                        if service.verify_credentials():
-                            st.success("Credentials Verified! Connection successful.")
-                        else:
-                            st.error("Verification Failed: Check your client ID/secret.")
-                    except Exception as e:
-                        st.error(f"Verification Error: {e}")
 
     # ===================================================================
     # Start button (outside expander, always visible)
@@ -315,18 +267,12 @@ def render():
             from core.schemas import RedditCredentials, CollectionParams
             from services.job_manager import JobManager
             
-            creds = st.session_state.get('reddit_credentials', {})
-            has_credentials = bool(creds.get('client_id') and creds.get('client_secret'))
-            
-            if not has_credentials:
-                st.error("Reddit API credentials required — see README")
-                return
-            
+            import os
             from services.reddit_service import RedditService
             creds_obj = RedditCredentials(
-                client_id=creds['client_id'],
-                client_secret=creds['client_secret'],
-                user_agent=creds.get('user_agent', 'AcademicResearch:NootropicsStudy:v1.0 (by /u/YourUsername)')
+                client_id=os.environ.get('REDDIT_CLIENT_ID', ''),
+                client_secret=os.environ.get('REDDIT_CLIENT_SECRET', ''),
+                user_agent=os.environ.get('REDDIT_USER_AGENT', 'AcademicResearch:NootropicsStudy:v1.0')
             )
             service = RedditService(creds_obj)
             st.session_state.active_data_source = 'praw'

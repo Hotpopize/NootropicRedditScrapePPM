@@ -64,6 +64,50 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
+# STARTUP GATE: REDDIT AUTHENTICATION
+# ---------------------------------------------------------------------------
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+_client_id = os.getenv("REDDIT_CLIENT_ID")
+_client_secret = os.getenv("REDDIT_CLIENT_SECRET")
+_user_agent = os.getenv("REDDIT_USER_AGENT", "AcademicResearch:NootropicsStudy:v1.0")
+
+def _verify_praw_credentials(client_id, client_secret, user_agent):
+    if not client_id or not client_secret:
+        return False, "Missing REDDIT_CLIENT_ID or REDDIT_CLIENT_SECRET in .env"
+    try:
+        import praw
+        import prawcore
+        reddit = praw.Reddit(
+            client_id=client_id,
+            client_secret=client_secret,
+            user_agent=user_agent
+        )
+        reddit.read_only = True
+        _ = reddit.user.me() if not reddit.read_only else reddit.random_subreddit()
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+if 'reddit_auth_ok' not in st.session_state:
+    st.session_state.reddit_auth_ok, st.session_state.reddit_auth_err = _verify_praw_credentials(
+        _client_id, _client_secret, _user_agent
+    )
+
+if not st.session_state.reddit_auth_ok:
+    st.title("🔬 NootropicRedditScrapePPM")
+    st.error(
+        "🚨 **Reddit API credentials required.**\n\n"
+        "This application cannot start without authenticated Reddit API access.\n"
+        "Please provide valid developer credentials in your `.env` file.\n\n"
+        f"**Error Details:** {st.session_state.reddit_auth_err}\n\n"
+        "See `SETUP.md` for the Reddit4Researcher application process and instructions."
+    )
+    st.stop()
+
+# ---------------------------------------------------------------------------
 # Database initialisation — runs on every cold start, safe to re-run
 # ---------------------------------------------------------------------------
 
