@@ -3,7 +3,7 @@
 This repository contains a specialized research instrument developed as part of a Master's Thesis at **Modul University Vienna**. It is designed as a tool for netnography and a supporting tool for qualitative academic research, combining systematic social media data collection with automated thematic text analysis.
 
 **Researcher**: Vladislav Dolgov  
-**Supervisor**: Dr. Oliver Nixon  
+**Supervisor**: Dr. L.Nixon  
 **Institution**: Modul University Vienna  
 **Agreement**: Developed in accordance with the *Reddit Research Data Addendum* (Executed 2026-04-01).
 
