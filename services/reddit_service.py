@@ -3,6 +3,12 @@ services/reddit_service.py
 ==========================
 Authenticated Reddit data collection via PRAW.
 
+Compliance: Reddit Research Data Addendum (executed 2026-04-01)
+---------------------------------------------------------------------------
+This module implements authenticated-only access (§1) and 
+PII pseudonymisation at ingestion time (§2.b).
+See COMPLIANCE.md in the repository root for the full mapping.
+
 Collects posts and comments using Reddit's official API. Implements the
 collect_data() generator interface so JobManager can run it in a background
 thread.

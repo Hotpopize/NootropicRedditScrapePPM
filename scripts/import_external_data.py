@@ -1,3 +1,10 @@
+# scripts/import_external_data.py
+# ================================
+# Compliance: Reddit Research Data Addendum (executed 2026-04-01)
+# ---------------------------------------------------------------------------
+# This module implements the external-data ingestion gate with enforced 
+# PII constraints (§2.b). See COMPLIANCE.md for the full mapping.
+#
 import argparse
 import csv
 import json

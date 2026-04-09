@@ -3,6 +3,11 @@
 Data Anonymization Script for Academic Research
 ================================================
 
+Compliance: Reddit Research Data Addendum (executed 2026-04-01)
+---------------------------------------------------------------------------
+This module implements SHA-256 username pseudonymisation (§2.b).
+See COMPLIANCE.md in the repository root for the full mapping.
+
 Removes personally identifiable information (PII) from Reddit data exports
 before sharing for replication purposes. Designed for IRB/ethics compliance.
 

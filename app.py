@@ -12,6 +12,11 @@ logging.basicConfig(
 # Streamlit application for qualitative netnographic analysis of Reddit
 # communities using the Push-Pull-Mooring (PPM) framework.
 #
+# Compliance: Reddit Research Data Addendum (executed 2026-04-01)
+# ---------------------------------------------------------------------------
+# This module implements the hard-fail startup credential gate (§1).
+# See COMPLIANCE.md in the repository root for the full mapping.
+#
 # Startup sequence
 # ----------------
 # 1. Configure logging (before any imports)

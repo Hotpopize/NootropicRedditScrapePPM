@@ -2,6 +2,11 @@
 # ==============================
 # Compliance scrubber for the NootropicRedditScrapePPM thesis tool.
 #
+# Compliance: Reddit Research Data Addendum (executed 2026-04-01)
+# ---------------------------------------------------------------------------
+# This module implements the automated deletion compliance scrubber (§2.c).
+# See COMPLIANCE.md in the repository root for the full mapping.
+#
 # Purpose
 # -------
 # Checks every collected Reddit submission against the live Reddit API and

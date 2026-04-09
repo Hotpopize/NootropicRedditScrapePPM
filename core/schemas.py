@@ -3,6 +3,11 @@ core/schemas.py
 ===============
 Pydantic v2 data models for NootropicRedditScrapePPM.
 
+Compliance: Reddit Research Data Addendum (executed 2026-04-01)
+---------------------------------------------------------------------------
+This module implements the PII author constraint (§2.b) and 
+RateLimitConfig (§2.a). See COMPLIANCE.md for the full mapping.
+
 Runtime usage notes
 -------------------
 - RedditCredentials     — instantiated in modules/reddit_scraper.py and services/reddit_service.py
