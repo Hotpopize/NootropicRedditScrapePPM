@@ -70,18 +70,6 @@ for mod in modules_to_check:
     except Exception as e:
         print(f"❌ Module Import Error ({mod}): {e}")
 
-# 5. Check Reddit JSON fallback
-print("\n🔍 Checking Reddit JSON Endpoint Fallback...")
-try:
-    from services.reddit_json_service import RedditJSONService
-    service = RedditJSONService()
-    # very small smoke test
-    posts = service.fetch_posts("Nootropics", max_posts=1)
-    if posts:
-        print("✅ Reddit JSON service successfully fetched a test post.")
-    else:
-        print("⚠️ Reddit JSON service returned no posts, but didn't crash.")
-except Exception as e:
-    print(f"❌ Reddit JSON service test failed: {e}")
+
 
 print("\n🏁 Verification Complete.")

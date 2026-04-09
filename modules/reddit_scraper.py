@@ -30,27 +30,10 @@ def render():
     )
     st.session_state.session_label = session_label
 
-    # Resolve data source mode — needed for badge and downstream logic
     creds = st.session_state.get('reddit_credentials', {})
     has_creds = bool(creds.get('client_id') and creds.get('client_secret'))
 
-    if 'data_source_preference' not in st.session_state:
-        st.session_state.data_source_preference = "Auto (recommended)"
-
-    pref = st.session_state.data_source_preference
-    use_json = (
-        pref == "JSON Endpoint" or
-        (pref == "Auto (recommended)" and not has_creds)
-    )
-
-    # Mode badge — single-line status, not a choice widget
-    if use_json:
-        st.caption(
-            "🟢 Collecting via public endpoint — no credentials needed. "
-            "~2 min for 5 subreddits. Comments not available in this mode."
-        )
-    else:
-        st.caption("🔑 Collecting with Reddit API credentials — faster, comments available")
+    st.caption("🔑 Collecting with Reddit API credentials")
 
     # ===================================================================
     # Section 2: Thesis summary + Start button
@@ -192,19 +175,10 @@ def render():
                     help="Max number of items to fetch per community. Higher limits increase collection time.",
                 )
 
-                use_json_mode_comments = (
-                    st.session_state.data_source_preference == "JSON Endpoint" or
-                    (st.session_state.data_source_preference == "Auto (recommended)"
-                     and not has_creds)
-                )
-
                 collect_comments = st.checkbox(
                     "Collect Comments",
                     value=False,
-                    disabled=use_json_mode_comments,
-                    help="Comment collection not available in JSON mode."
-                         if use_json_mode_comments
-                         else "Collect top comments per post.",
+                    help="Collect top comments per post.",
                 )
 
                 if collect_comments:
@@ -275,21 +249,6 @@ def render():
                     if st.button("Use as Search Query"):
                         st.session_state.zotero_search_query = suggested_query
 
-        # --- Data Source (always visible in Advanced, for both modes) ---
-        st.divider()
-        st.write("**Data Source**")
-
-        data_source = st.radio(
-            "Collection backend",
-            ["Auto (recommended)", "PRAW", "JSON Endpoint"],
-            index=["Auto (recommended)", "PRAW", "JSON Endpoint"].index(
-                st.session_state.data_source_preference
-            ),
-            horizontal=True,
-            key="data_source_radio",
-        )
-        st.session_state.data_source_preference = data_source
-
         # --- Reddit API Credentials ---
         with st.expander("🔑 Reddit API Credentials (optional)", expanded=False):
             client_id = st.text_input(
@@ -356,36 +315,22 @@ def render():
             from core.schemas import RedditCredentials, CollectionParams
             from services.job_manager import JobManager
             
-            # Resolve which service to use
             creds = st.session_state.get('reddit_credentials', {})
             has_credentials = bool(creds.get('client_id') and creds.get('client_secret'))
-            pref = st.session_state.data_source_preference
             
-            use_praw = (
-                pref == "PRAW" or
-                (pref == "Auto (recommended)" and has_credentials)
-            )
-            
-            if use_praw and not has_credentials:
-                st.error("PRAW selected but no credentials configured.")
+            if not has_credentials:
+                st.error("Reddit API credentials required — see README")
                 return
             
-            if use_praw:
-                from services.reddit_service import RedditService
-                creds_obj = RedditCredentials(
-                    client_id=creds['client_id'],
-                    client_secret=creds['client_secret'],
-                    user_agent=creds.get('user_agent', 'AcademicResearch:NootropicsStudy:v1.0 (by /u/YourUsername)')
-                )
-                service = RedditService(creds_obj)
-                st.session_state.active_data_source = 'praw'
-                final_user_agent = creds_obj.user_agent
-            else:
-                from services.reddit_json_service import RedditJSONService
-                user_agent_val = creds.get('user_agent', None)
-                service = RedditJSONService(user_agent=user_agent_val)
-                st.session_state.active_data_source = 'json_endpoint'
-                final_user_agent = service.user_agent
+            from services.reddit_service import RedditService
+            creds_obj = RedditCredentials(
+                client_id=creds['client_id'],
+                client_secret=creds['client_secret'],
+                user_agent=creds.get('user_agent', 'AcademicResearch:NootropicsStudy:v1.0 (by /u/YourUsername)')
+            )
+            service = RedditService(creds_obj)
+            st.session_state.active_data_source = 'praw'
+            final_user_agent = creds_obj.user_agent
 
             # --- Pre-flight connection test ---
             # Catches unreachable Reddit, network issues, and IP blocks
@@ -481,10 +426,7 @@ def render():
                     rate = job_state.progress.rate_stats
                     col1, col2, col3 = st.columns(3)
                     
-                    pref_poll = st.session_state.get('data_source_preference', 'Auto (recommended)')
-                    has_creds_poll = bool(st.session_state.get('reddit_credentials', {}).get('client_id'))
-                    use_json_poll = (pref_poll == "JSON Endpoint" or (pref_poll == "Auto (recommended)" and not has_creds_poll))
-                    budget_label = "API Budget" if not use_json_poll else "Request Budget"
+                    budget_label = "API Budget"
                     
                     col1.metric(budget_label, f"{rate.get('requests_this_window', 0)}/{rate.get('requests_per_minute_limit', 60)}")
                     col2.metric("Window Resets", f"{rate.get('window_remaining_seconds', 0):.0f}s")
@@ -591,14 +533,13 @@ def render():
             st.session_state.collection_runs.append(collection_params)
 
             active_src = st.session_state.get('active_data_source', 'praw')
-            src_label = "via Reddit API (PRAW)" if active_src == 'praw' else "via JSON Endpoint"
+            src_label = "via Reddit API (PRAW)"
             if saved_count == 0:
                 st.warning(
                     f"⚠️ **Collection completed but saved 0 items** {src_label}.\n\n"
                     "This usually means Reddit rate-limited every request. "
-                    "The public JSON endpoint allows roughly 10 requests per minute — "
-                    "running multiple collections in quick succession exhausts this budget.\n\n"
-                    "**Try:** Wait 2 minutes, then click **Start New Collection** below. "
+                    "Running multiple collections in quick succession exhausts your API budget.\n\n"
+                    "**Try:** Wait a minute, then click **Start New Collection** below. "
                     "If the problem persists, check the Collection Statistics expander "
                     "for Rate Limit Events."
                 )

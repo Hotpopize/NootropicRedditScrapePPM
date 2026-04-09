@@ -12,9 +12,7 @@ graph TD
     UI -->|Views| Dashboard[Analytics Dashboard]
     
     Scraper -->|Reddit API| PRAW[Reddit PRAW]
-    Scraper -->|JSON Fallback| JSONSvc[RedditJSONService]
     PRAW -->|Fetches Data| Reddit[Reddit]
-    JSONSvc -->|Fetches Data| Reddit[Reddit]
     Scraper -->|Saves Raw Data| DB[(SQLite Database)]
     
     Coder -->|Fetches Data| DB
@@ -37,7 +35,7 @@ graph TD
 
 Located in `modules/`, these isolate business logic:
 
-- **`reddit_scraper.py`**: Handles authentication with PRAW, rate limiting, and data fetching. Uses `services/reddit_json_service.py` as an unauthenticated fallback for robustness.
+- **`reddit_scraper.py`**: Handles authentication with PRAW, rate limiting, and data fetching.
 - **`llm_coder.py`**: Orchestrates the automated qualitative coding process. It constructs prompts, manages context windows, and validates JSON outputs from the computational model.
 - **`dashboard.py`**: Contains data visualization logic using Plotly/Altair (via Streamlit).
 - **`codebook.py`**: Manages the qualitative coding schema (CRUD operations).

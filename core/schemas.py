@@ -43,7 +43,6 @@ from pydantic import BaseModel, Field
 class RedditCredentials(BaseModel):
     """
     OAuth credentials for PRAW (script-type app).
-    Not required for RedditJSONService.
     """
     client_id:     str
     client_secret: str
@@ -56,13 +55,10 @@ class RedditCredentials(BaseModel):
 
 class RateLimitConfig(BaseModel):
     """
-    Rate limiting parameters shared by both RedditService (PRAW) and
-    RedditJSONService. Instantiated with defaults — no env override
-    configured (pydantic-settings not installed; use os.getenv if needed).
+    Rate limiting parameters for RedditService (PRAW). Instantiated with defaults
+    — no env override configured (pydantic-settings not installed; use os.getenv if needed).
 
     PRAW service uses requests_per_minute=50 (Reddit OAuth cap).
-    JSON service should use requests_per_minute=30 (conservative for
-    unauthenticated endpoints).
     """
     requests_per_minute: int   = Field(default=50,  ge=1, le=60,  description="Target requests per minute")
     max_retries:         int   = Field(default=5,   ge=1, le=10,  description="Retry attempts on rate limit / connection error")
@@ -87,9 +83,7 @@ class CollectionParams(BaseModel):
     so `if params.job_id:` is sufficient — hasattr guards in reddit_service.py
     are now redundant but harmless).
 
-    date_after / date_before are used exclusively by RedditJSONService for
-    pagination termination. RedditService (PRAW) ignores these fields and
-    relies on time_filter instead.
+    RedditService (PRAW) relies on time_filter instead.
     """
     # Core collection parameters
     subreddits:        List[str]
@@ -163,7 +157,7 @@ class RedditItemMetadata(BaseModel):
 
     # Collection audit
     collection_hash:       str               = ''
-    data_source:           Optional[str]     = 'praw'        # 'praw' | 'json_endpoint'
+    data_source:           Optional[str]     = 'praw'
 
     # Comment-only fields (None for submissions)
     is_submitter:          Optional[bool]    = None
@@ -182,7 +176,7 @@ class RedditItem(BaseModel):
     Key fields:
       id          — bare reddit ID (e.g. 'abc123') — NOT the t3_ fullname
       text        — post body / comment body (field name is 'text', NOT 'body')
-      data_source — 'praw' | 'json_endpoint' — written to collected_data.data_source
+      data_source — 'praw' — written to collected_data.data_source
       metadata    — nested dict matching RedditItemMetadata shape
     """
     id:           str
@@ -198,7 +192,7 @@ class RedditItem(BaseModel):
     permalink:    str                        # full URL: 'https://reddit.com/r/...'
     post_id:      Optional[str]   = None     # None for top-level submissions
     collected_at: str                        # ISO format datetime string
-    data_source:  str             = 'praw'  # 'praw' | 'json_endpoint'
+    data_source:  str             = 'praw'
     metadata:     Dict[str, Any]  = {}       # shape matches RedditItemMetadata
 
 
