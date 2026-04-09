@@ -34,7 +34,7 @@ from tenacity import (
     before_sleep_log
 )
 
-from core.schemas import RedditCredentials, CollectionParams, CollectionProgress, CollectionResult, CollectionStats, RateLimitConfig
+from core.schemas import RedditCredentials, CollectionParams, CollectionProgress, CollectionResult, CollectionStats, RateLimitConfig, CollectedItem
 from utils.db_helpers import save_collected_data, update_scrape_run
 from modules.codebook import get_ppm_keywords
 
@@ -331,13 +331,16 @@ class RedditService:
                     full_content_for_tagging = f"{post.title} {post_text}"
                     auto_tags = get_ppm_tags(full_content_for_tagging)
 
+                    raw_author = str(post.author) if post.author else '[deleted]'
+                    safe_author = hashlib.sha256(raw_author.encode()).hexdigest() if raw_author not in ['[deleted]', '[removed]'] else raw_author
+
                     post_data = {
                         'id': post.id,
                         'type': 'submission',
                         'subreddit': subreddit_name,
                         'title': post.title,
                         'text': post_text,
-                        'author': str(post.author) if post.author else '[deleted]',
+                        'author': safe_author,
                         'score': post.score,
                         'created_utc': post.created_utc,
                         'num_comments': post.num_comments,
@@ -366,6 +369,7 @@ class RedditService:
                             'flair_text': getattr(post, 'link_flair_text', None)
                         }
                     }
+                    CollectedItem.model_validate(post_data) # Enforce schema & PII validation
                     collected_posts.append(post_data)
 
                     if params.collect_comments and post.num_comments > 0:
@@ -383,6 +387,9 @@ class RedditService:
                                 if comment_language == 'likely_non_english':
                                     stats.flagged_non_english += 1
 
+                                raw_comment_author = str(comment.author) if comment.author else '[deleted]'
+                                safe_comment_author = hashlib.sha256(raw_comment_author.encode()).hexdigest() if raw_comment_author not in ['[deleted]', '[removed]'] else raw_comment_author
+
                                 comment_data = {
                                     'id': comment.id,
                                     'type': 'comment',
@@ -390,7 +397,7 @@ class RedditService:
                                     'post_id': post.id,
                                     'title': f"Comment on: {post.title[:100]}",
                                     'text': comment_text,
-                                    'author': str(comment.author) if comment.author else '[deleted]',
+                                    'author': safe_comment_author,
                                     'score': comment.score,
                                     'created_utc': comment.created_utc,
                                     'permalink': f"https://reddit.com{comment.permalink}",
@@ -412,6 +419,7 @@ class RedditService:
                                         'parent_id': comment.parent_id
                                     }
                                 }
+                                CollectedItem.model_validate(comment_data) # Enforce schema & PII validation
                                 collected_posts.append(comment_data)
                                 
                                 # Incremental write checkpoint

@@ -27,3 +27,19 @@ Ensure you have Python 3.11+ and Ollama installed.
 ## Configuration
 
 Reddit API credentials are required. See SETUP.md for the Reddit4Researcher application process.
+
+## Quickstart (Try it without Reddit credentials!)
+
+Because of strict PII and platform requirements, attempting to use the scraper without API credentials will fail. 
+
+However, you can test the **entire downstream qualitative analysis pipeline** using our provided `samples/synthetic_nootropics_sample.csv` (a 100% fabricated dataset simulating the Push-Pull-Mooring framework):
+
+```bash
+# 1. Start the Streamlit application
+streamlit run app.py
+
+# 2. Open a separate terminal and import the synthetic sample dataset
+python scripts/import_external_data.py samples/synthetic_nootropics_sample.csv --acknowledge-pii-scrubbing
+```
+
+Now, open the dashboard. The dataset will exist under `External Import: synthetic_nootropics_sample.csv` where you can run the LLM Coder and Topic Modeler instantly!

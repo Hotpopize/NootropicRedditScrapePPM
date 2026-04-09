@@ -50,8 +50,8 @@ def test_verify_credentials_success(mock_praw):
     creds = RedditCredentials(client_id="id", client_secret="secret", user_agent="test")
     service = RedditService(creds)
     
-    # Just verify it doesn't crash on init with mock
-    assert service.reddit is not None
+    # Just verify the credentials verify successfully
+    assert service.verify_credentials() is True
 
 
 

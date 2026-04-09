@@ -230,7 +230,7 @@ def load_collected_data(session_id: str = None,
 
     data_source coalesces NULL → 'praw' for rows predating the migration.
 
-    Returns list of dicts matching the RedditItem schema shape.
+    Returns list of dicts matching the CollectedItem schema shape.
     """
     db = get_db_session()
     try:

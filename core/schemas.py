@@ -13,8 +13,8 @@ Runtime usage notes
 - CollectionStats       — built inside both services, embedded in CollectionResult
 - JobStatus / JobState  — managed exclusively by services/job_manager.py
 - RateLimitEvent        — reference schema only; rate_limit_events passed as List[Dict] in practice
-- RedditItem            — reference schema only; items passed as raw dicts throughout the pipeline
-- RedditItemMetadata    — reference schema only; metadata embedded in item dict under 'metadata' key
+- CollectedItem            — reference schema only; items passed as raw dicts throughout the pipeline
+- ItemMetadata    — reference schema only; metadata embedded in item dict under 'metadata' key
 
 Pydantic version: >=2.0.0 (see pyproject.toml)
 
@@ -22,7 +22,7 @@ Migration notes
 ---------------
 - RateLimitConfig.class Config removed (was Pydantic v1 syntax, pydantic-settings not installed)
 - HttpUrl import removed (was imported but never used)
-- data_source added to RedditItem and RedditItemMetadata
+- data_source added to CollectedItem and ItemMetadata
 - date_after / date_before added to CollectionParams for JSON endpoint date range filtering
 - CollectionStats fields with known zero-population documented inline
 """
@@ -33,7 +33,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, Generator, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +123,7 @@ class CollectionParams(BaseModel):
 # Item metadata and item shape (reference schemas — not used as runtime validators)
 # ---------------------------------------------------------------------------
 
-class RedditItemMetadata(BaseModel):
+class ItemMetadata(BaseModel):
     """
     Reference schema for the 'metadata' dict embedded in each item dict.
 
@@ -165,7 +165,7 @@ class RedditItemMetadata(BaseModel):
     parent_id:             Optional[str]     = None
 
 
-class RedditItem(BaseModel):
+class CollectedItem(BaseModel):
     """
     Reference schema for the item dicts passed to save_collected_data().
 
@@ -177,7 +177,7 @@ class RedditItem(BaseModel):
       id          — bare reddit ID (e.g. 'abc123') — NOT the t3_ fullname
       text        — post body / comment body (field name is 'text', NOT 'body')
       data_source — 'praw' — written to collected_data.data_source
-      metadata    — nested dict matching RedditItemMetadata shape
+      metadata    — nested dict matching ItemMetadata shape
     """
     id:           str
     type:         str                        # 'submission' | 'comment'
@@ -193,7 +193,21 @@ class RedditItem(BaseModel):
     post_id:      Optional[str]   = None     # None for top-level submissions
     collected_at: str                        # ISO format datetime string
     data_source:  str             = 'praw'
-    metadata:     Dict[str, Any]  = {}       # shape matches RedditItemMetadata
+    metadata:     Dict[str, Any]  = {}       # shape matches ItemMetadata
+
+    @field_validator('author')
+    @classmethod
+    def validate_author_pii(cls, v: str) -> str:
+        if v.lower() in ["[deleted]", "[removed]"]:
+            return v
+        if len(v) >= 32 and all(c in "0123456789abcdefABCDEF" for c in v):
+            return v
+        if v.startswith("anon_") or v.startswith("pseudonym_"):
+            return v
+        raise ValueError(
+            "Author field MUST be pseudonymized (e.g. SHA256 hashed, 'anon_XXX', or '[deleted]') "
+            "to comply with strict PII constraints for reusable analysis."
+        )
 
 
 # ---------------------------------------------------------------------------

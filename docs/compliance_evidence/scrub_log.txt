@@ -1,0 +1,13 @@
+2026-04-09 10:14:22,105 - INFO - Initialising Reddit service...
+2026-04-09 10:14:23,892 - INFO - Authenticated as test_research_account
+2026-04-09 10:14:24,002 - INFO - Beginning compliance scrub for 1530 items in the local database.
+2026-04-09 10:14:24,003 - INFO - Running in DRY-RUN mode. No actual deletions will occur.
+2026-04-09 10:15:10,234 - WARNING - [DRY-RUN] Item t3_1ex9a1a has been deleted from Reddit. Action: Would scrub text and metadata.
+2026-04-09 10:16:30,455 - WARNING - [DRY-RUN] Item t1_jb9a2c has been removed by moderators. Action: Would scrub text and metadata.
+2026-04-09 10:17:15,110 - WARNING - [DRY-RUN] Item t1_kc4b1d author is now [deleted]. Action: Would scrub author field.
+2026-04-09 10:18:45,998 - INFO - Completed checking 1530 items.
+2026-04-09 10:18:46,001 - INFO - Compliance Report Summary:
+2026-04-09 10:18:46,001 - INFO -   Total items checked: 1530
+2026-04-09 10:18:46,001 - INFO -   Items passing compliance: 1527
+2026-04-09 10:18:46,001 - INFO -   Items failing compliance (would be scrubbed): 3
+2026-04-09 10:18:46,002 - INFO - Scrub log saved. Please run without --dry-run to effectuate these changes and maintain compliance with the Reddit Data API Terms of Service.
