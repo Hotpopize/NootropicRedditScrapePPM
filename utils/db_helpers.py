@@ -783,7 +783,7 @@ def save_replicability_log(
     This is intentional — the hash represents a unique parameter set,
     not a unique run timestamp.
 
-    parameters dict MUST include 'data_source' key ('praw' | 'json_endpoint')
+    parameters dict MUST include 'data_source' key ('praw' | 'external_import')
     for full methodology traceability. This is set by modules/reddit_scraper.py
     using st.session_state.active_data_source.
 
@@ -983,7 +983,7 @@ def get_session_stats(session_id: str) -> dict:
       subreddits      list  — distinct subreddit names
       first_collected str|None — ISO timestamp of earliest collected_at
       last_collected  str|None — ISO timestamp of latest collected_at
-      data_sources    list  — distinct data_source values ('praw', 'json_endpoint')
+      data_sources    list  — distinct data_source values ('praw', 'external_import')
       label           str|None — human-readable label from ScrapeRun.extra_metadata
       is_test         bool  — True if flagged as test run in ScrapeRun.extra_metadata
       status          str|None — latest ScrapeRun status (COMPLETED/FAILED/CANCELLED/RUNNING)

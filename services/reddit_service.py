@@ -10,7 +10,7 @@ thread.
 Exports
 -------
 - RedditService: Main collection service class.
-- RateLimiter: Token bucket rate limiter, also used by RedditJSONService.
+- RateLimiter: Token bucket rate limiter.
 - reddit_retry: Tenacity decorator for PRAW network errors.
 - detect_content_status: Helper for identifying removed/deleted content.
 - detect_language: Helper for identifying non-English text.

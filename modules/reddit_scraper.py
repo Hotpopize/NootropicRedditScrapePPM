@@ -319,7 +319,7 @@ def render():
                 session_label=st.session_state.get('session_label'),
             )
 
-            # Bind session context — required by both RedditService and RedditJSONService
+            # Bind session context — required by RedditService
             # for incremental DB saves and session-scoped codebook prune.
             params.session_id = st.session_state.session_id
             params.collection_started = datetime.utcnow().isoformat()

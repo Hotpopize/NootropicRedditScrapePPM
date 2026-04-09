@@ -92,7 +92,7 @@ class CollectionParams(BaseModel):
     limit:             int
     search_query:      Optional[str]   = None
 
-    # Comment collection — PRAW only; ignored by RedditJSONService
+    # Comment collection — PRAW only
     collect_comments:  bool  = True
     comment_limit:     int   = 50
 
@@ -104,10 +104,10 @@ class CollectionParams(BaseModel):
     max_text_length:    int  = 50000
     min_word_count_val: int  = 0
 
-    # Date range filtering — JSON endpoint only (Unix timestamps)
+    # Date range filtering (Unix timestamps)
     # Default: 2020-01-01 00:00:00 UTC → 2025-12-31 23:59:59 UTC
-    date_after:  float = Field(default=1577836800.0, description="Unix timestamp — posts before this date excluded (JSON service only)")
-    date_before: float = Field(default=1893456000.0, description="Unix timestamp — posts after this date excluded (JSON service only). Default: 2030-01-01")
+    date_after:  float = Field(default=1577836800.0, description="Unix timestamp — posts before this date excluded")
+    date_before: float = Field(default=1893456000.0, description="Unix timestamp — posts after this date excluded. Default: 2030-01-01")
 
     # Set by modules/reddit_scraper.py before job start
     user_agent:          Optional[str] = None
@@ -129,7 +129,7 @@ class ItemMetadata(BaseModel):
 
     NOT instantiated in the pipeline — items are constructed as plain dicts
     in both services. This schema documents the expected metadata shape for
-    use when implementing RedditJSONService and for type-checking tools.
+    type-checking tools.
     """
     # Content classification
     nsfw:                  bool              = False
