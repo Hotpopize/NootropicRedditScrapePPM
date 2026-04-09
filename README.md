@@ -26,6 +26,4 @@ Ensure you have Python 3.11+ and Ollama installed.
 
 ## Configuration
 
-**Reddit API credentials are entirely optional.** By default, the tool automatically utilizes a credential-free JSON endpoint mode to passively fetch data without requiring any configuration.
-
-If you intend to perform rate-managed, high-volume data collection, you may configure Reddit Developer credentials using `.env.example` as a template.
+Reddit API credentials are required. See SETUP.md for the Reddit4Researcher application process.
