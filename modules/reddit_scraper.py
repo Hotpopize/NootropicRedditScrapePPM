@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 
 from utils.db_helpers import save_collected_data, log_action, save_replicability_log, get_all_zotero_keywords, update_session_metadata
+from services.reddit_service import DEFAULT_USER_AGENT
 
 # --- THESIS CONFIGURATION CONSTANTS ---
 THESIS_SUBREDDITS = [
@@ -272,7 +273,7 @@ def render():
             creds_obj = RedditCredentials(
                 client_id=os.environ.get('REDDIT_CLIENT_ID', ''),
                 client_secret=os.environ.get('REDDIT_CLIENT_SECRET', ''),
-                user_agent=os.environ.get('REDDIT_USER_AGENT', 'AcademicResearch:NootropicsStudy:v1.0')
+                user_agent=os.environ.get('REDDIT_USER_AGENT', DEFAULT_USER_AGENT)
             )
             service = RedditService(creds_obj)
             st.session_state.active_data_source = 'praw'

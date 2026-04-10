@@ -32,10 +32,11 @@ This tool requires authenticated access via the Reddit Data API.
 3. Note your `client_id` (under the script name) and `client_secret`.
 4. Create a `.env` file in the project root:
 
+This exact string must match the Reddit account on the signed Research Data Addendum. Do not modify it when using this tool under the existing agreement.
 ```env
 REDDIT_CLIENT_ID=your_id_here
 REDDIT_CLIENT_SECRET=your_secret_here
-REDDIT_USER_AGENT=Hotpopize_Thesis_Research_v1.0
+REDDIT_USER_AGENT=script:NootropicRedditScrapePPM:v1.0 (by /u/MscNooManMuAt)
 ```
 
 > [!IMPORTANT]

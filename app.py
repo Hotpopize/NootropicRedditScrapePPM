@@ -56,6 +56,7 @@ import streamlit as st
 from core.database import init_db
 from modules.codebook import CodebookManager
 from utils.db_helpers import load_codebook, load_coded_data, load_collected_data
+from services.reddit_service import DEFAULT_USER_AGENT
 from utils.model_setup import validate_models
 
 # ---------------------------------------------------------------------------
@@ -77,7 +78,7 @@ from dotenv import load_dotenv
 load_dotenv()
 _client_id = os.getenv("REDDIT_CLIENT_ID")
 _client_secret = os.getenv("REDDIT_CLIENT_SECRET")
-_user_agent = os.getenv("REDDIT_USER_AGENT", "AcademicResearch:NootropicsStudy:v1.0")
+_user_agent = os.getenv("REDDIT_USER_AGENT", DEFAULT_USER_AGENT)
 
 def _verify_praw_credentials(client_id, client_secret, user_agent):
     if not client_id or not client_secret:

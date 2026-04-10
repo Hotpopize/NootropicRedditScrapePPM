@@ -1,12 +1,15 @@
 # Project Status & TODOs
 
-## 📌 Current Status
+## 🛡️ Compliance Program (April 2026)
 
-- **Core Functionality**: ✅ Reddit scraping, Automated Qualitative Coding, and Dashboard visualization are implemented.
-- **Documentation**: ✅ Initial `README.md` and `CITATION.cff` compliant with academic standards.
-- **Dependencies**: ✅ Managed via `pyproject.toml`.
+| Tier | Focus Area | Status |
+| :--- | :--- | :--- |
+| **Tier 1** | Compliance Remediation (JSON Removal, Startup Gate) | ✅ Completed |
+| **Tier 2** | Academic Reframing & Institutional Alignment | ✅ Completed |
+| **Tier 3** | BYO-Data Interface & Synthetic Corpus | ✅ Completed |
+| **Tier 4** | **Final Operational Polish & Identity Audit** | 🔴 **In Progress** |
 
-## 📋 To-Do List
+## 📋 Post-Thesis Backlog
 
 ### 📝 Documentation & Methodology
 

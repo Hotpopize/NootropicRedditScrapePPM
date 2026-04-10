@@ -47,6 +47,13 @@ from modules.codebook import get_ppm_keywords
 logger = logging.getLogger(__name__)
 
 # =============================================================================
+# CONSTANTS
+# =============================================================================
+
+DEFAULT_USER_AGENT = "script:NootropicRedditScrapePPM:v1.0 (by /u/MscNooManMuAt)"
+
+
+# =============================================================================
 # RATE LIMITER CLASS
 # =============================================================================
 
@@ -191,7 +198,7 @@ class RedditService:
         try:
             final_user_agent = self.credentials.user_agent
             if "AcademicResearch" not in final_user_agent and len(final_user_agent) < 10:
-                final_user_agent = "AcademicResearch:NootropicRedditScrapePPM:v1.0 (by /u/unknown)"
+                final_user_agent = DEFAULT_USER_AGENT
 
             # Local PRAW instance just for verification
             reddit = praw.Reddit(
@@ -216,7 +223,7 @@ class RedditService:
         # CREATE REDDIT INSTANCE INSIDE WORKER THREAD FOR THREAD ISOLATION
         final_user_agent = self.credentials.user_agent
         if "AcademicResearch" not in final_user_agent and len(final_user_agent) < 10:
-            final_user_agent = "AcademicResearch:NootropicRedditScrapePPM:v1.0 (by /u/unknown)"
+            final_user_agent = DEFAULT_USER_AGENT
         
         reddit = praw.Reddit(
             client_id=self.credentials.client_id,
