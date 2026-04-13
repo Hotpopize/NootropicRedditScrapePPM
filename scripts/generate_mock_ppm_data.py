@@ -468,6 +468,38 @@ SYNTHETIC_POSTS: list[dict] = [
         "subreddit": "Nootropics",
         "ppm_hint": "mixed",
     },
+    # ---- NOOTOPICS: Science-heavy / Specific compounds ----
+    {
+        "title": "The shift from generic stacks to high-affinity ligands — my experience with NooTopics",
+        "text": (
+             "I spent three years on the standard r/Nootropics 'beginner stack' and never felt "
+             "much besides a slight reduction in anxiety from Ashwagandha. Moving over to "
+             "r/NooTopics was a wake-up call regarding the actual science of receptor affinity. "
+             "The move to more targeted compounds has been a game-changer for my cognitive "
+             "endurance. It's not about 'feeling' a buzz, it's about the measurable reduction "
+             "in mental fatigue during 10-hour coding sessions. The barrier for entry is "
+             "definitely higher — you have to actually read the papers — but the pull of "
+             "legitimate, non-placebo cognitive enhancement is hard to ignore once you see "
+             "the data."
+        ),
+        "subreddit": "NooTopics",
+        "ppm_hint": "pull",
+    },
+    {
+        "title": "Is the complexity of advanced nootropics a 'mooring' factor?",
+        "text": (
+            "I love the deep dives on r/NooTopics, but sometimes I wonder if the sheer "
+            "technical density of the discussions acts as a barrier for people wanting to "
+            "switch from caffeine. I've been researching bromantane and TAK-653 for months, "
+            "and I still feel like I'm barely scratching the surface of the pharmacology. "
+            "The cost of 'learning' the stack is much higher than just grabbing a pre-made "
+            "Alpha Brain or whatever. For me, the fascination with the brain's mechanics is "
+            "part of the pull, but for most people, the learning curve is probably a massive "
+            "mooring factor that keeps them stuck on traditional stimulants."
+        ),
+        "subreddit": "NooTopics",
+        "ppm_hint": "mixed",
+    },
 ]
 
 

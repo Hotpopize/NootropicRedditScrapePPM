@@ -14,11 +14,14 @@ The research is framed within the **Push-Pull-Mooring (PPM)** migration framewor
 
 ## 2. Target Communities (Subreddits)
 Data collection is restricted to a fixed set of topic-relevant subreddits where consumer discourse on cognitive enhancement is primary:
-- `r/nootropics`
-- `r/caffeine`
-- `r/biohacking`
+- `r/Nootropics`
 - `r/StackAdvice`
-- `r/Focus`
+- `r/Supplements`
+- `r/Decaf`
+- `r/Biohackers` (Jul. 2013 | 643k | 17k)
+- `r/NooTopics`
+
+**Note on r/Biohackers:** Integrated PULL + MOOR-F — supplements embedded within broader lifestyle systems; most sophisticated consumer profile. The Systems-Thinking Self-Optimiser. Situates nootropic use within DIY biology, longevity, sleep, and wearables discourse. Distinguishes standalone-supplement from systems-level orientation. Anchors P2 and P4.
 
 ## 3. Keywords & Thematic Filters
 The collection and subsequent LLM coding pipeline focus on the following core entities:

@@ -11,7 +11,8 @@ THESIS_SUBREDDITS = [
     'StackAdvice',
     'Supplements',
     'Decaf',
-    'Biohackers'
+    'Biohackers',
+    'NooTopics'
 ]
 
 
@@ -54,7 +55,7 @@ def render():
             options=THESIS_SUBREDDITS,
             default=THESIS_SUBREDDITS,
             help=(
-                "These 5 subreddits represent the core of the nootropics community. "
+                "These 6 subreddits represent the core of the nootropics community. "
                 "You can deselect specific ones to run a targeted collection."
             ),
             key="thesis_sub_select",
@@ -110,7 +111,7 @@ def render():
         thesis_checked = st.checkbox(
             "🎓 Use Thesis Configuration (Methodology Standard)",
             value=st.session_state.use_thesis_config,
-            help="Locks parameters to thesis methodology: 5 subreddits, "
+            help="Locks parameters to thesis methodology: 6 subreddits, "
                  "Top Posts (all time), 50 per sub, min 20 words, text only.",
             key="thesis_config_checkbox",
         )

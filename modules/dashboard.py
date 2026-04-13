@@ -23,7 +23,7 @@
 # Framework: Push-Pull-Mooring (PPM), applied deductively via netnographic
 #            analysis of five Reddit communities.
 # Target:    150–200 posts across r/Nootropics, r/StackAdvice, r/Supplements,
-#            r/Decaf, r/Biohackers (2020–2025).
+#            r/Decaf, r/Biohackers, r/NooTopics (2020–2025).
 #
 # Exported symbols
 # ----------------
@@ -217,7 +217,7 @@ def render() -> None:
             "👋 **Welcome!** You haven't collected any data yet.\n\n"
             "Go to **🌐 Data Collection** in the sidebar to get started. "
             f"Your thesis needs {THESIS_TARGET_MIN}–{THESIS_TARGET_MAX} posts "
-            "from 5 subreddits — the default settings are already configured. "
+            "from 6 subreddits — the default settings are already configured. "
             "Just type a session label, click Start, and wait."
         )
 
@@ -276,7 +276,7 @@ def render() -> None:
             "(habit, financial costs, learning costs, information asymmetry, stigma, "
             "ethics; community info, accessibility, health consciousness, low switching costs)\n\n"
             "**Communities:** r/Nootropics · r/StackAdvice · r/Supplements · "
-            "r/Decaf · r/Biohackers (2020–2025)\n\n"
+            "r/Decaf · r/Biohackers · r/NooTopics (2020–2025)\n\n"
             "**Method:** Qualitative netnography with deductive PPM coding via local LLM "
             "(Ollama: llama3.1 / gemma3:12b). Export to NVivo/MAXQDA for deep analysis."
         )
