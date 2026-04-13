@@ -243,8 +243,8 @@ specific guidance via the support ticket referenced above.
 | `README.md` | Project overview, quickstart with synthetic sample, links to compliance documentation |
 | `LICENSE` | PolyForm Noncommercial 1.0.0 — the non-commercial licence referenced in §3 |
 | `docs/data_schema.md` | The `CollectedItem` contract that downstream analysis operates on; includes the PII constraints enforced at ingestion |
-| `docs/research_scope.md` *(forthcoming)* | Concrete scope: target subreddits, keyword list, date range, endpoints used, rate-limit ceiling, expected post volume |
-| `docs/data_handling.md` *(forthcoming)* | Lifecycle policy: storage location, retention period, pre-publication deletion check workflow, end-of-research deletion commitment |
+| `docs/research_scope.md` | Concrete scope: target subreddits, keyword list, date range, endpoints used, rate-limit ceiling, expected post volume |
+| `docs/data_handling.md` | Lifecycle policy: storage location, retention period, pre-publication deletion check workflow, end-of-research deletion commitment |
 | `docs/compliance_evidence/scrub_log.txt` | Committed log of a prior `scrub_deleted_data.py --dry-run` execution |
 | `samples/README.md` | Provenance statement for the synthetic sample dataset |
 | `scripts/scrub_deleted_data.py` | Automated §2.c deletion compliance scrubber |
@@ -257,8 +257,7 @@ specific guidance via the support ticket referenced above.
 
 ## Change log
 
-| Date | Change | Commit |
-|---|---|---|
+| 2026-04-13 | added r/NooTopics as sixth target subreddit; corrected r/Biohackers metadata | `3c149a4` |
 | 2026-04-09 | Initial compliance map written | *(pending merge)* |
 | 2026-04-09 | Tier 3 BYO-data interface and synthetic sample added | `5f78cb9` |
 | 2026-04-09 | Hard startup credential gate added | `d5e6faa` |
