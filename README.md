@@ -28,7 +28,6 @@ The research instrument is divided into sequential modules:
 - **Module 1 (Ingestion)**: BigQuery BQAH extraction and CLI CSV import (see [bqah_extraction_reference.md](file:///c:/Users/iamab/Documents/MasterNOOoffline/NootropicRedditScrapePPM/NootropicRedditScrapePPM/docs/bqah_extraction_reference.md) for technical parameters).
 - **Module 2 (Coding)**: Automated deductive and emergent thematic coding via local LLMs.
 - **Module 3/4 (Aggregation & Audit)**: Quantitative matrix generation (Chapter 4 tables) and compliance auditing.
-- **Module 5 (The Ultrathinking Council)**: A multi-agent LLM orchestrator to synthesize the Chapter 4 tables into deep qualitative insights through persona-driven debate.
 
 ## Ethics & Compliance
 

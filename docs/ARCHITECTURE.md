@@ -34,7 +34,7 @@ graph TD
 Located in `modules/`, these isolate business logic:
 
 - **`bqah_import.py`**: (CLI script under `scripts/`) Imports raw Reddit CSV data exported from Google BigQuery (BQAH) into the SQLite database.
-- **`llm_coder.py`**: (CLI script under `scripts/bqah_coder.py` and `modules/module5_council.py`) Orchestrates the automated qualitative qualitative coding process. It constructs prompts, manages context windows, and validates JSON outputs from the computational model.
+- **`bqah_coder.py`**: (CLI script under `scripts/bqah_coder.py`) Orchestrates the automated qualitative coding process. It constructs prompts, manages context windows, and validates JSON outputs from the computational model.
 - **`dashboard.py`**: Contains data visualization logic using Plotly/Altair (via Streamlit).
 - **`codebook.py`**: Manages the qualitative coding schema (CRUD operations).
 
