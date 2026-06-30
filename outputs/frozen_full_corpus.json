@@ -1,0 +1,98 @@
+{
+  "_stratum": "full_corpus",
+  "_n_total": 50044,
+  "_id_prefixes_seen": [
+    "t1_",
+    "t3_"
+  ],
+  "_db_sha": "f73b5ad8a4c60a6e4dfc49c84c3de80d02c07747c988e150c745461958cfdf2d",
+  "_table_source": "coded_data JOIN collected_data",
+  "_generated_at": "2026-06-25T03:39:16.428190+00:00",
+  "_y_axis_field": "MOOR_present_pct",
+  "_filters": {
+    "quarantine_reason": "IS NULL",
+    "coded_by": "LIKE 'llama%'",
+    "data_source": "!= 'json_endpoint'",
+    "machine_partition": "IS NOT NULL",
+    "post_id": "LIKE 't1_%' OR LIKE 't3_%'"
+  },
+  "Nootropics": {
+    "total_units": 9143,
+    "PUSH_count": 432,
+    "PULL_count": 745,
+    "MOOR_F_count": 392,
+    "MOOR_I_count": 136,
+    "MOOR_present_count": 520,
+    "PUSH_pct": 4.72,
+    "PULL_pct": 8.15,
+    "MOOR_F_pct": 4.29,
+    "MOOR_I_pct": 1.49,
+    "MOOR_present_pct": 5.69
+  },
+  "Supplements": {
+    "total_units": 13364,
+    "PUSH_count": 2960,
+    "PULL_count": 4074,
+    "MOOR_F_count": 2250,
+    "MOOR_I_count": 600,
+    "MOOR_present_count": 2812,
+    "PUSH_pct": 22.15,
+    "PULL_pct": 30.48,
+    "MOOR_F_pct": 16.84,
+    "MOOR_I_pct": 4.49,
+    "MOOR_present_pct": 21.04
+  },
+  "Decaf": {
+    "total_units": 3051,
+    "PUSH_count": 1197,
+    "PULL_count": 674,
+    "MOOR_F_count": 325,
+    "MOOR_I_count": 91,
+    "MOOR_present_count": 408,
+    "PUSH_pct": 39.23,
+    "PULL_pct": 22.09,
+    "MOOR_F_pct": 10.65,
+    "MOOR_I_pct": 2.98,
+    "MOOR_present_pct": 13.37
+  },
+  "Biohackers": {
+    "total_units": 14625,
+    "PUSH_count": 3313,
+    "PULL_count": 5084,
+    "MOOR_F_count": 2959,
+    "MOOR_I_count": 810,
+    "MOOR_present_count": 3715,
+    "PUSH_pct": 22.65,
+    "PULL_pct": 34.76,
+    "MOOR_F_pct": 20.23,
+    "MOOR_I_pct": 5.54,
+    "MOOR_present_pct": 25.4
+  },
+  "NooTopics": {
+    "total_units": 6460,
+    "PUSH_count": 1983,
+    "PULL_count": 2124,
+    "MOOR_F_count": 1086,
+    "MOOR_I_count": 296,
+    "MOOR_present_count": 1365,
+    "PUSH_pct": 30.7,
+    "PULL_pct": 32.88,
+    "MOOR_F_pct": 16.81,
+    "MOOR_I_pct": 4.58,
+    "MOOR_present_pct": 21.13
+  },
+  "StackAdvice": {
+    "total_units": 3401,
+    "PUSH_count": 748,
+    "PULL_count": 916,
+    "MOOR_F_count": 520,
+    "MOOR_I_count": 88,
+    "MOOR_present_count": 600,
+    "PUSH_pct": 21.99,
+    "PULL_pct": 26.93,
+    "MOOR_F_pct": 15.29,
+    "MOOR_I_pct": 2.59,
+    "MOOR_present_pct": 17.64
+  },
+  "_content_sha256": "df57c2d2220b45c1da8509c95ad4fcb25adda03266cd9953cefafbe3dce4c634"
+}

@@ -1,0 +1,113 @@
+{
+  "corpus_size_clean": 50044,
+  "quarantined_count": 4827,
+  "reliability_kappas": {
+    "L_R_dimension_mean": 0.115,
+    "G_R_dimension_mean": 0.151,
+    "L_G_dimension_mean": 0.047,
+    "L_R_NONE_diagnostic": 0.233,
+    "G_R_NONE_diagnostic": -0.054,
+    "L_G_NONE_diagnostic": 0.008
+  },
+  "community_metrics": {
+    "Nootropics": {
+      "total_units": 9143,
+      "PUSH_count": 432,
+      "PULL_count": 745,
+      "MOOR_F_count": 392,
+      "MOOR_I_count": 136,
+      "dominant": "PULL"
+    },
+    "Supplements": {
+      "total_units": 13364,
+      "PUSH_count": 2960,
+      "PULL_count": 4074,
+      "MOOR_F_count": 2250,
+      "MOOR_I_count": 600,
+      "dominant": "PULL"
+    },
+    "Decaf": {
+      "total_units": 3051,
+      "PUSH_count": 1197,
+      "PULL_count": 674,
+      "MOOR_F_count": 325,
+      "MOOR_I_count": 91,
+      "dominant": "PUSH"
+    },
+    "Biohackers": {
+      "total_units": 14625,
+      "PUSH_count": 3313,
+      "PULL_count": 5084,
+      "MOOR_F_count": 2959,
+      "MOOR_I_count": 810,
+      "dominant": "PULL"
+    },
+    "NooTopics": {
+      "total_units": 6460,
+      "PUSH_count": 1983,
+      "PULL_count": 2124,
+      "MOOR_F_count": 1086,
+      "MOOR_I_count": 296,
+      "dominant": "PULL"
+    },
+    "StackAdvice": {
+      "total_units": 3401,
+      "PUSH_count": 748,
+      "PULL_count": 916,
+      "MOOR_F_count": 520,
+      "MOOR_I_count": 88,
+      "dominant": "PULL"
+    }
+  },
+  "submissions_size_clean": 609,
+  "community_submissions_metrics": {
+    "Nootropics": {
+      "total_units": 105,
+      "PUSH_count": 13,
+      "PULL_count": 29,
+      "MOOR_F_count": 20,
+      "MOOR_I_count": 5,
+      "dominant": "PULL"
+    },
+    "Supplements": {
+      "total_units": 105,
+      "PUSH_count": 11,
+      "PULL_count": 29,
+      "MOOR_F_count": 27,
+      "MOOR_I_count": 3,
+      "dominant": "PULL"
+    },
+    "Decaf": {
+      "total_units": 107,
+      "PUSH_count": 40,
+      "PULL_count": 48,
+      "MOOR_F_count": 25,
+      "MOOR_I_count": 10,
+      "dominant": "PULL"
+    },
+    "Biohackers": {
+      "total_units": 105,
+      "PUSH_count": 12,
+      "PULL_count": 29,
+      "MOOR_F_count": 17,
+      "MOOR_I_count": 2,
+      "dominant": "PULL"
+    },
+    "NooTopics": {
+      "total_units": 87,
+      "PUSH_count": 4,
+      "PULL_count": 29,
+      "MOOR_F_count": 23,
+      "MOOR_I_count": 3,
+      "dominant": "PULL"
+    },
+    "StackAdvice": {
+      "total_units": 100,
+      "PUSH_count": 13,
+      "PULL_count": 36,
+      "MOOR_F_count": 19,
+      "MOOR_I_count": 4,
+      "dominant": "PULL"
+    }
+  }
+}
