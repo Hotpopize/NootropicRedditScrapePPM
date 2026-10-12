@@ -1,82 +1,62 @@
 # NootropicRedditScrapePPM
-### Qualitative Research Instrument for Consumer Discourse Analysis
-**Modul University Vienna — MSc Management / MBA Thesis Project**
 
----
+MSc Management thesis, Modul University Vienna, 2026 (91/100). Author: Vladislav Dolgov. Supervisor: Dr. Lyndon Nixon.
 
-**Principal Researcher:** Vladislav Dolgov (u/MscNooManMuAt)  
-**Research Contact:** 1821019@modul.ac.at  
-**Supervision:** Dr. Lyndon Nixon  
-**Compliance Status:** Verified Alignment with the *Reddit Research Data Addendum* (Executed 2026-04-01).
+The thesis applies the Push-Pull-Mooring (PPM) migration framework to consumers switching from caffeine and stimulants to nootropics. Reddit posts and comments from six communities (2020 to 2025) were coded by a local LLM against a PPM codebook, and each community was placed on a perceptual map.
 
----
+![Perceptual map of six nootropics communities](outputs/chapter4/submissions_only/perceptual_map.png)
 
-## Project Overview
+## Results
 
-This instrument facilitates the systematic study of cognitive supplement (nootropic) discourse. It implements the **Push-Pull-Mooring (PPM)** migration framework to understand why consumers transition from traditional stimulants (e.g., caffeine, prescription meds) to natural nootropic alternatives.
+Certified corpus: 50,044 units (609 submissions, 49,435 comments). The map uses the 609 submissions.
 
-The tool provides:
+| Community | N | Push-pull balance | Mooring prevalence (%) | Archetype |
+|---|---|---|---|---|
+| r/NooTopics | 87 | +0.758 | 29.9 | Facilitator-Embedded Wellness Seeker |
+| r/Supplements | 105 | +0.450 | 26.7 | Facilitator-Embedded Wellness Seeker |
+| r/StackAdvice | 100 | +0.469 | 23.0 | Self-Directed Natural Optimiser |
+| r/Nootropics | 105 | +0.381 | 21.9 | Self-Directed Natural Optimiser |
+| r/Biohackers | 105 | +0.415 | 17.1 | Self-Directed Natural Optimiser |
+| r/Decaf | 107 | +0.091 | 29.9 | Caffeine/Stimulant Escapee |
 
-- **Methodological Consistency**: Automated thematic coding based on established qualitative frameworks.
-- **Privacy-First Analysis**: Utilizes local Large Language Models (LLMs) to ensure research data never leaves the investigator's local environment.
-- **Transparency**: A full audit trail of collection parameters, replicability logs, and data quality metrics.
+Push-pull balance is (PULL − PUSH) / (PULL + PUSH). Mooring prevalence is the share of submissions with any mooring code.
 
-## Pipeline Architecture
+All six communities read net-pull. r/Decaf is the exception in degree: push (40) nearly matches pull (48). Mooring then splits the rest, highest in r/NooTopics and r/Supplements, lowest in r/Biohackers.
 
-The research instrument is divided into sequential modules:
+Inter-rater agreement was slight (Cohen's kappa 0.115 Llama–researcher, 0.151 Gemma–researcher, 0.047 Llama–Gemma), so the archetypes are an interpretive, community-level reading rather than a measurement.
 
-- **Module 1 (Ingestion)**: BigQuery BQAH extraction and CLI CSV import (see [bqah_extraction_reference.md](file:///c:/Users/iamab/Documents/MasterNOOoffline/NootropicRedditScrapePPM/NootropicRedditScrapePPM/docs/bqah_extraction_reference.md) for technical parameters).
-- **Module 2 (Coding)**: Automated deductive and emergent thematic coding via local LLMs.
-- **Module 3/4 (Aggregation & Audit)**: Quantitative matrix generation (Chapter 4 tables) and compliance auditing.
+## Method
 
-## Ethics & Compliance
+1. **Collection.** BigQuery extraction under Reddit's Research Data Addendum, filtered by score and length, stratified to 660 posts with their comment threads.
+2. **Coding.** Llama 3.1 via Ollama, six parallel workers (`scripts/bqah_coder.py`, codebook in `modules/codebook.py`).
+3. **Reliability.** Researcher-coded subsample, second rater Gemma 3 12B (`scripts/calculate_irr_kappa.py`).
+4. **Map.** Per-community counts frozen to `outputs/frozen_*.json`, rendered by `perceptual_map.py`.
 
-This project is built on the principle of **Public Code, Private Data**. It adheres strictly to the Reddit Data API Terms of Service. For a full audit of how every clause of the *Reddit Research Data Addendum* is operationalised, see the **Compliance Map (COMPLIANCE.md)**.
+Extraction parameters: [`docs/bqah_extraction_reference.md`](docs/bqah_extraction_reference.md). Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
-- **Non-Commercial Use**: This software is an academic artifact and is governed by the [MIT License](LICENSE).
-- **PII Protection**: Raw usernames are never stored in the analysis pipeline. All `author` fields are irreversibly pseudonymized using SHA256 hashing at the point of ingestion.
-- **Data Deletion Workflow**: Includes database deletion options to ensure the dataset remains compliant with right-to-be-forgotten requirements.
-- **No Redistribution**: This repository does **not** contain or redistribute real Reddit user data.
+## Demo
 
-## Quickstart (Reviewer Demo)
-
-Because this tool requires private research datasets, we provide a CLI script to generate a **100% synthetic dataset** to allow immediate evaluation of the analysis pipeline.
+The repo holds no Reddit data. A synthetic dataset runs the pipeline end to end:
 
 ```bash
-# 1. Install dependencies (requires Python 3.11+)
-pip install -e .
-
-# 2. Verify installation and connection health
+pip install -e .                          # Python 3.11+
 python scripts/verify_install.py
-
-# 3. Ingest the synthetic demo data into the database
 python scripts/generate_mock_ppm_data.py
-
-# 4. Launch the research dashboard
 streamlit run app.py
 ```
 
-Once imported, the dashboard will display the synthetic session, where you can test the **LLM Coder** and **PPM Visualization** modules.
-
-## Configuration
-
-For full research deployment (local LLM qualitative coding), please refer to the SETUP.md guide for instructions on:
-
-- Configuring local LLMs via Ollama.
-- Managing environment variables.
-
----
+Ollama setup: [`SETUP.md`](SETUP.md). Data-agreement compliance: [`COMPLIANCE.md`](COMPLIANCE.md).
 
 ## Citation
 
-If you use this instrument or methodology in your research, please cite as follows:
-
 ```bibtex
 @software{dolgov2026caffeine,
-  author = {Dolgov, Vladislav},
-  title = {Caffeine to Brain Boosts: A Qualitative Research Instrument for Nootropic Discourse Analysis},
+  author      = {Dolgov, Vladislav},
+  title       = {Caffeine to Brain Boosts: A Qualitative Research Instrument for Nootropic Discourse Analysis},
   institution = {Modul University Vienna},
-  year = {2026},
-  url = {https://github.com/Hotpopize/NootropicRedditScrapePPM}
+  year        = {2026},
+  url         = {https://github.com/Hotpopize/NootropicRedditScrapePPM}
 }
 ```
+
+MIT licence. Contact: [LinkedIn / email here]
