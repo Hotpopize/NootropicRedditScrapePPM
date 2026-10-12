@@ -1,82 +1,114 @@
 # NootropicRedditScrapePPM
-### Qualitative Research Instrument for Consumer Discourse Analysis
-**Modul University Vienna — MSc Management / MBA Thesis Project**
+
+**Why people move from caffeine and stimulants to nootropics, read from six Reddit communities with a local-LLM coding pipeline.**
+
+MSc Management thesis, Modul University Vienna, 2026 (graded 91/100). Supervisor: Dr. Lyndon Nixon.
+Author: Vladislav Dolgov.
+
+![Perceptual map of six nootropics communities](outputs/chapter4/submissions_only/perceptual_map.png)
 
 ---
 
-**Principal Researcher:** Vladislav Dolgov (u/MscNooManMuAt)  
-**Research Contact:** 1821019@modul.ac.at  
-**Supervision:** Dr. Lyndon Nixon  
-**Compliance Status:** Verified Alignment with the *Reddit Research Data Addendum* (Executed 2026-04-01).
+## In one paragraph
 
----
+The thesis applies the Push-Pull-Mooring (PPM) migration framework to consumer switching in the nootropics market. Push factors are bad experiences with the incumbent (caffeine crashes, stimulant side effects), pull factors are the draw of the alternative (focus, clarity, "natural"), and mooring factors are what eases or blocks the move (dosing know-how, safety worries, cost). Reddit data from 2020 to 2025 was extracted under Reddit's Research Data Addendum, coded locally by an LLM against a PPM codebook, and aggregated into a perceptual map that places each community by its push-pull balance and its mooring prevalence. Three community archetypes come out of the map.
 
-## Project Overview
+## Results
 
-This instrument facilitates the systematic study of cognitive supplement (nootropic) discourse. It implements the **Push-Pull-Mooring (PPM)** migration framework to understand why consumers transition from traditional stimulants (e.g., caffeine, prescription meds) to natural nootropic alternatives.
+### Certified corpus
 
-The tool provides:
+| Stage | Units |
+|---|---|
+| Certified submissions | 609 |
+| Certified comments | 49,435 |
+| **Certified corpus** | **50,044** |
 
-- **Methodological Consistency**: Automated thematic coding based on established qualitative frameworks.
-- **Privacy-First Analysis**: Utilizes local Large Language Models (LLMs) to ensure research data never leaves the investigator's local environment.
-- **Transparency**: A full audit trail of collection parameters, replicability logs, and data quality metrics.
+Communities: r/Nootropics, r/Supplements, r/Decaf, r/Biohackers, r/NooTopics, r/StackAdvice.
 
-## Pipeline Architecture
+### Perceptual map (submissions stratum, N = 609)
 
-The research instrument is divided into sequential modules:
+X = push-pull balance, (PULL - PUSH) / (PULL + PUSH). Y = mooring prevalence, share of submissions with any mooring code present.
 
-- **Module 1 (Ingestion)**: BigQuery BQAH extraction and CLI CSV import (see [bqah_extraction_reference.md](file:///c:/Users/iamab/Documents/MasterNOOoffline/NootropicRedditScrapePPM/NootropicRedditScrapePPM/docs/bqah_extraction_reference.md) for technical parameters).
-- **Module 2 (Coding)**: Automated deductive and emergent thematic coding via local LLMs.
-- **Module 3/4 (Aggregation & Audit)**: Quantitative matrix generation (Chapter 4 tables) and compliance auditing.
+| Community | N | Push-pull balance | Mooring prevalence (%) | Archetype |
+|---|---|---|---|---|
+| r/NooTopics | 87 | +0.758 | 29.9 | Facilitator-Embedded Wellness Seeker |
+| r/Supplements | 105 | +0.450 | 26.7 | Facilitator-Embedded Wellness Seeker |
+| r/StackAdvice | 100 | +0.469 | 23.0 | Self-Directed Natural Optimiser |
+| r/Biohackers | 105 | +0.415 | 17.1 | Self-Directed Natural Optimiser |
+| r/Nootropics | 105 | +0.381 | 21.9 | Self-Directed Natural Optimiser |
+| r/Decaf | 107 | +0.091 | 29.9 | Caffeine/Stimulant Escapee |
 
-## Ethics & Compliance
+What the map shows:
 
-This project is built on the principle of **Public Code, Private Data**. It adheres strictly to the Reddit Data API Terms of Service. For a full audit of how every clause of the *Reddit Research Data Addendum* is operationalised, see the **Compliance Map (COMPLIANCE.md)**.
+- **All six communities read net-pull in the coded submissions.** Discussion is driven more by what the alternative offers than by complaints about the incumbent.
+- **r/Decaf sits closest to equilibrium.** Push talk (40 codes) nearly matches pull talk (48), which fits a community organised around leaving caffeine rather than choosing a product.
+- **Mooring separates the rest.** r/NooTopics and r/Supplements carry the most facilitating and inhibiting talk (how to dose, what is safe, where to buy). r/Biohackers carries the least, reading as more self-directed.
 
-- **Non-Commercial Use**: This software is an academic artifact and is governed by the [MIT License](LICENSE).
-- **PII Protection**: Raw usernames are never stored in the analysis pipeline. All `author` fields are irreversibly pseudonymized using SHA256 hashing at the point of ingestion.
-- **Data Deletion Workflow**: Includes database deletion options to ensure the dataset remains compliant with right-to-be-forgotten requirements.
-- **No Redistribution**: This repository does **not** contain or redistribute real Reddit user data.
+### Reliability caveat
 
-## Quickstart (Reviewer Demo)
+Agreement between coders was slight: Cohen's kappa of 0.115 (Llama vs researcher), 0.151 (Gemma vs researcher) and 0.047 (Llama vs Gemma). The map and the archetypes are therefore an interpretive reading of community-level discourse, not a measurement of individual users. All claims are at community level.
 
-Because this tool requires private research datasets, we provide a CLI script to generate a **100% synthetic dataset** to allow immediate evaluation of the analysis pipeline.
+## Method
 
-```bash
-# 1. Install dependencies (requires Python 3.11+)
-pip install -e .
-
-# 2. Verify installation and connection health
-python scripts/verify_install.py
-
-# 3. Ingest the synthetic demo data into the database
-python scripts/generate_mock_ppm_data.py
-
-# 4. Launch the research dashboard
-streamlit run app.py
+```
+BigQuery extraction ──► SQLite import ──► LLM coding ──► aggregation ──► perceptual map
+ (Reddit Research       (bqah_import.py)   (bqah_coder.py,   (module3_       (perceptual_map.py)
+  Data Addendum)                            Llama 3.1 via     aggregation.py)
+                                            Ollama)
+                                   └──► reliability check (calculate_irr_kappa.py, Gemma 3 12B second rater)
 ```
 
-Once imported, the dashboard will display the synthetic session, where you can test the **LLM Coder** and **PPM Visualization** modules.
+1. **Collection.** Six subreddits, 1 Jan 2020 to 31 Dec 2025, extracted in BigQuery under the Reddit Research Data Addendum. Quality gates on score and body length; a keyword layer for switching, push, pull and mooring terms plus a keyword-free layer; tertile-stratified sampling to 660 posts with their comment threads. The full coded set was then analysed as a census.
+2. **Coding.** Every unit coded locally by Llama 3.1 (Ollama, 16k context, six parallel workers) against a PPM codebook. No data leaves the machine.
+3. **Reliability.** A researcher-coded subsample, double-coded by Gemma 3 12B, scored with Cohen's kappa.
+4. **Aggregation and freeze.** Counts per community frozen to `outputs/frozen_*.json`; every figure in the thesis traces back to these files.
+5. **Map.** Coordinates computed from the frozen counts and rendered with matplotlib.
 
-## Configuration
+Technical extraction parameters: [`docs/bqah_extraction_reference.md`](docs/bqah_extraction_reference.md). Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
-For full research deployment (local LLM qualitative coding), please refer to the SETUP.md guide for instructions on:
+## Repository layout
 
-- Configuring local LLMs via Ollama.
-- Managing environment variables.
+| Path | What it is |
+|---|---|
+| `scripts/bqah_import.py` | Imports the BigQuery CSV exports into SQLite |
+| `scripts/bqah_coder.py` | Partitioned LLM coding run with test protocols and circuit breakers |
+| `scripts/calculate_irr_kappa.py` | Inter-rater reliability |
+| `scripts/export_coded_data.py` | Exports coded data for analysis |
+| `modules/codebook.py` | PPM codebook |
+| `modules/module3_aggregation.py` | Community-level aggregation |
+| `perceptual_map.py` | Renders the perceptual map |
+| `outputs/frozen_*.json` | Frozen figures behind every number above |
+| `outputs/chapter4/` | Rendered maps (submissions and full corpus) |
+| `samples/` | Fully synthetic demo data |
+| `app.py` | Streamlit research dashboard |
 
----
+## Run it on synthetic data
+
+The research data cannot be redistributed, so the repo ships a generator for a fully synthetic dataset.
+
+```bash
+pip install -e .                          # Python 3.11+
+python scripts/verify_install.py          # environment and Ollama health check
+python scripts/generate_mock_ppm_data.py  # load synthetic data
+streamlit run app.py                      # open the dashboard
+```
+
+Local LLM coding needs Ollama; see [`SETUP.md`](SETUP.md).
+
+## Data and ethics
+
+Public code, private data. No Reddit content or user data is in this repository. Data was accessed under the Reddit Research Data Addendum (executed 2026-04-01); author fields are kept out of the analysis pipeline. Clause-by-clause mapping of the agreement to the code: [`COMPLIANCE.md`](COMPLIANCE.md).
 
 ## Citation
 
-If you use this instrument or methodology in your research, please cite as follows:
-
 ```bibtex
 @software{dolgov2026caffeine,
-  author = {Dolgov, Vladislav},
-  title = {Caffeine to Brain Boosts: A Qualitative Research Instrument for Nootropic Discourse Analysis},
+  author      = {Dolgov, Vladislav},
+  title       = {Caffeine to Brain Boosts: A Qualitative Research Instrument for Nootropic Discourse Analysis},
   institution = {Modul University Vienna},
-  year = {2026},
-  url = {https://github.com/Hotpopize/NootropicRedditScrapePPM}
+  year        = {2026},
+  url         = {https://github.com/Hotpopize/NootropicRedditScrapePPM}
 }
 ```
+
+MIT licence. Contact: [LinkedIn / email here]
